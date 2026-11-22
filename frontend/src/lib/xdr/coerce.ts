@@ -178,6 +178,30 @@ export function coerceArgInput(
 
   const generic = parseGeneric(specType);
 
+  // A fixed-length byte array (a hash, salt or key) is hex, and its length is
+  // part of the type: a value of the wrong size is rejected here, not by the
+  // contract.
+  if (
+    generic?.name === "bytesn" &&
+    generic.args.length === 1 &&
+    /^\d+$/.test(generic.args[0])
+  ) {
+    const length = Number(generic.args[0]);
+    const hex = raw.trim().replace(/^0x/, "");
+    if (!/^([0-9a-fA-F]{2})*$/.test(hex)) {
+      throw new Error(
+        `"${raw.trim()}" is not valid hex. ${specType} takes ${length} bytes as hex, optionally prefixed with 0x.`
+      );
+    }
+    const bytes = Buffer.from(hex, "hex");
+    if (bytes.length !== length) {
+      throw new Error(
+        `${specType} takes exactly ${length} bytes, got ${bytes.length}.`
+      );
+    }
+    return nativeToScVal(bytes, { type: "bytes" });
+  }
+
   // An absent Option is void; anything else is the inner type.
   if (generic?.name === "option" && generic.args.length === 1) {
     const trimmed = raw.trim();

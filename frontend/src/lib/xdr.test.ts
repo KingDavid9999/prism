@@ -170,6 +170,29 @@ describe("coerceArgInput", () => {
       '"abc" is not valid hex.'
     );
   });
+
+  it("coerces a BytesN argument to bytes of exactly its declared length", () => {
+    const hex = "ab".repeat(32);
+    const scval = coerceArgInput(`0x${hex}`, "BytesN<32>");
+    expect(scval.switch().name).toBe("scvBytes");
+    expect(scval.bytes()).toHaveLength(32);
+    expect(scval.bytes().toString("hex")).toBe(hex);
+  });
+
+  it("rejects a BytesN argument whose length differs from the declared one", () => {
+    expect(() => coerceArgInput("ab".repeat(31), "BytesN<32>")).toThrow(
+      "BytesN<32> takes exactly 32 bytes, got 31."
+    );
+    expect(() => coerceArgInput("ab".repeat(33), "BytesN<32>")).toThrow(
+      "BytesN<32> takes exactly 32 bytes, got 33."
+    );
+  });
+
+  it("rejects non-hex input for a BytesN argument", () => {
+    expect(() => coerceArgInput("zz".repeat(32), "BytesN<32>")).toThrow(
+      "is not valid hex."
+    );
+  });
 });
 
 describe("coerceArgInput integer ranges", () => {
@@ -268,6 +291,16 @@ describe("parseContractSpec", () => {
     const [spec] = parseContractSpec(wasmWithSpec([functionEntry("", tuple)]));
     expect(spec.inputs).toEqual([{ name: "value", type: "(U32, Symbol)" }]);
     expect(spec.outputs).toEqual(["(U32, Symbol)"]);
+  });
+
+  it("keeps the length of a BytesN type in signatures", () => {
+    const bytesN = xdr.ScSpecTypeDef.scSpecTypeBytesN(
+      new xdr.ScSpecTypeBytesN({ n: 32 })
+    );
+
+    const [spec] = parseContractSpec(wasmWithSpec([functionEntry("", bytesN)]));
+    expect(spec.inputs).toEqual([{ name: "value", type: "BytesN<32>" }]);
+    expect(spec.outputs).toEqual(["BytesN<32>"]);
   });
 
   it("shows the error type in a Result signature, not just the ok type", () => {
