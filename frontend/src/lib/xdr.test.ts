@@ -9,6 +9,8 @@ import {
   Operation,
   StrKey,
   TransactionBuilder,
+  encodeMuxedAccount,
+  encodeMuxedAccountToAddress,
 } from "@stellar/stellar-sdk";
 import {
   decodeScVal,
@@ -432,6 +434,103 @@ describe("decodeAnyXdr", () => {
 
   it("returns null for input that isn't XDR", () => {
     expect(decodeAnyXdr("not valid xdr")).toBeNull();
+  });
+});
+
+describe("decodeAnyXdr (muxed source)", () => {
+  it("shows a muxed envelope source as its M address, with the base key and ID alongside", () => {
+    const source = Keypair.random();
+    const muxed = encodeMuxedAccount(source.publicKey(), "1234");
+    const mAddress = encodeMuxedAccountToAddress(muxed);
+    const envelope = xdr.TransactionEnvelope.fromXDR(
+      buildEnvelope(source).toXDR(),
+      "base64"
+    );
+    envelope.v1().tx().sourceAccount(muxed);
+
+    const fields = Object.fromEntries(
+      (decodeAnyXdr(envelope.toXDR("base64"))?.fields ?? []).map((f) => [
+        f.label,
+        f.value,
+      ])
+    );
+    expect(mAddress.startsWith("M")).toBe(true);
+    expect(fields["Source account"]).toBe(
+      `${mAddress} (base ${source.publicKey()}, id 1234)`
+    );
+  });
+});
+
+describe("decodeAnyXdr (ledger entries)", () => {
+  const contract = "CDPUJYCTPGPEGS6MBXYLEWTYSGCPVKUHCURLF2ORT3RAVL5TF5JKIAI5";
+  const entry = (data: xdr.LedgerEntryData) =>
+    new xdr.LedgerEntry({
+      lastModifiedLedgerSeq: 5,
+      data,
+      ext: new xdr.LedgerEntryExt(0),
+    });
+  const fieldMap = (e: xdr.LedgerEntry) =>
+    Object.fromEntries(
+      (decodeAnyXdr(e.toXDR("base64"))?.fields ?? []).map((f) => [
+        f.label,
+        f.value,
+      ])
+    );
+
+  it("shows contract, durability, key and value for a contractData entry", () => {
+    const e = entry(
+      xdr.LedgerEntryData.contractData(
+        new xdr.ContractDataEntry({
+          ext: new xdr.ExtensionPoint(0),
+          contract: new Address(contract).toScAddress(),
+          key: xdr.ScVal.scvSymbol("Admin"),
+          durability: xdr.ContractDataDurability.persistent(),
+          val: xdr.ScVal.scvU32(7),
+        })
+      )
+    );
+    expect(fieldMap(e)).toEqual({
+      "Entry type": "contractData",
+      "Last modified ledger": "5",
+      Contract: contract,
+      Durability: "persistent",
+      "Storage key": "Admin",
+      Value: "7",
+    });
+  });
+
+  it("shows the hash for a contractCode entry", () => {
+    const e = entry(
+      xdr.LedgerEntryData.contractCode(
+        new xdr.ContractCodeEntry({
+          ext: new xdr.ContractCodeEntryExt(0),
+          hash: Buffer.alloc(32, 0xab),
+          code: Buffer.alloc(0),
+        })
+      )
+    );
+    expect(fieldMap(e)).toEqual({
+      "Entry type": "contractCode",
+      "Last modified ledger": "5",
+      "WASM hash": "ab".repeat(32),
+    });
+  });
+
+  it("shows the key hash and live-until ledger for a ttl entry", () => {
+    const e = entry(
+      xdr.LedgerEntryData.ttl(
+        new xdr.TtlEntry({
+          keyHash: Buffer.alloc(32, 7),
+          liveUntilLedgerSeq: 100,
+        })
+      )
+    );
+    expect(fieldMap(e)).toEqual({
+      "Entry type": "ttl",
+      "Last modified ledger": "5",
+      "Key hash": "07".repeat(32),
+      "Live until ledger": "100",
+    });
   });
 });
 

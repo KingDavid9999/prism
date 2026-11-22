@@ -1,4 +1,9 @@
-import { Address, StrKey, xdr } from "@stellar/stellar-sdk";
+import {
+  Address,
+  StrKey,
+  encodeMuxedAccountToAddress,
+  xdr,
+} from "@stellar/stellar-sdk";
 import { decodeScVal, scValToDisplay } from "./display";
 import { decodeInvocation, getResourceUsage, v1Tx } from "./invocation";
 import { specTypeToString } from "./spec";
@@ -89,7 +94,8 @@ function muxedAccountToAddress(account: xdr.MuxedAccount): string {
       return StrKey.encodeEd25519PublicKey(account.ed25519());
     }
     const muxed = account.med25519();
-    return `${StrKey.encodeEd25519PublicKey(muxed.ed25519())} (muxed id ${muxed.id().toString()})`;
+    const base = StrKey.encodeEd25519PublicKey(muxed.ed25519());
+    return `${encodeMuxedAccountToAddress(account)} (base ${base}, id ${muxed.id().toString()})`;
   } catch {
     return "(unrepresentable account)";
   }
@@ -305,13 +311,45 @@ function ledgerKeyFields(key: xdr.LedgerKey): XdrField[] {
 }
 
 function ledgerEntryFields(entry: xdr.LedgerEntry): XdrField[] {
-  return [
-    { label: "Entry type", value: entry.data().switch().name },
+  const data = entry.data();
+  const kind = data.switch().name;
+  const fields: XdrField[] = [
+    { label: "Entry type", value: kind },
     {
       label: "Last modified ledger",
       value: String(entry.lastModifiedLedgerSeq()),
     },
   ];
+
+  try {
+    if (kind === "contractData") {
+      const d = data.contractData();
+      fields.push(
+        {
+          label: "Contract",
+          value: Address.fromScAddress(d.contract()).toString(),
+        },
+        { label: "Durability", value: d.durability().name },
+        { label: "Storage key", value: scValToDisplay(d.key()) },
+        { label: "Value", value: scValToDisplay(d.val()) }
+      );
+    } else if (kind === "contractCode") {
+      fields.push({
+        label: "WASM hash",
+        value: data.contractCode().hash().toString("hex"),
+      });
+    } else if (kind === "ttl") {
+      const ttl = data.ttl();
+      fields.push(
+        { label: "Key hash", value: ttl.keyHash().toString("hex") },
+        { label: "Live until ledger", value: String(ttl.liveUntilLedgerSeq()) }
+      );
+    }
+  } catch {
+    // Keep the type and ledger lines if the entry body doesn't read cleanly.
+  }
+
+  return fields;
 }
 
 function specEntryFields(entry: xdr.ScSpecEntry): XdrField[] {
