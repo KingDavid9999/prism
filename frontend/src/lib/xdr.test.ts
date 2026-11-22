@@ -270,6 +270,18 @@ describe("parseContractSpec", () => {
     expect(spec.outputs).toEqual(["(U32, Symbol)"]);
   });
 
+  it("shows the error type in a Result signature, not just the ok type", () => {
+    const result = xdr.ScSpecTypeDef.scSpecTypeResult(
+      new xdr.ScSpecTypeResult({
+        okType: xdr.ScSpecTypeDef.scSpecTypeUdt(new xdr.ScSpecTypeUdt({ name: "Note" })),
+        errorType: xdr.ScSpecTypeDef.scSpecTypeUdt(new xdr.ScSpecTypeUdt({ name: "Error" })),
+      })
+    );
+
+    const [spec] = parseContractSpec(wasmWithSpec([functionEntry("", result)]));
+    expect(spec.outputs).toEqual(["Result<Note, Error>"]);
+  });
+
   it("keeps a function's doc comment", () => {
     const [spec] = parseContractSpec(
       wasmWithSpec([functionEntry("Advances the note's revision.")])
