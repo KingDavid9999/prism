@@ -230,6 +230,21 @@ export interface OperationAuthorizations {
   entries: AuthorizationEntry[];
 }
 
+/** A contract creation or WASM upload from one operation. */
+export interface ContractDeployment {
+  operationIndex: number;
+  kind: "createContract" | "createContractV2" | "uploadWasm";
+  /**
+   * Hex hash of the WASM the new contract runs (creates), or of the uploaded
+   * code (uploads). Null for a Stellar asset contract, which has no WASM.
+   */
+  wasmHash: string | null;
+  /** Byte length of an uploaded WASM. */
+  wasmSize?: number;
+  /** Constructor arguments; only CreateContractV2 carries them. */
+  constructorArgs: string[];
+}
+
 /** One ledger entry touched by a Soroban transaction. */
 export interface FootprintEntry {
   access: "read" | "write";

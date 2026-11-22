@@ -3,6 +3,7 @@ import type {
   AuthorizationCredentials,
   AuthorizationEntry,
   AuthorizedInvocationNode,
+  ContractDeployment,
   FootprintEntry,
   OperationAuthorizations,
   OperationInvocation,
@@ -127,6 +128,97 @@ export function decodeAuthorizationEntry(
     credentials: description,
     root: authorizedInvocationNode(entry.rootInvocation()),
   };
+}
+
+function wasmHashOf(executable: xdr.ContractExecutable): string | null {
+  return executable.switch().name === "contractExecutableWasm"
+    ? bytesToHex(executable.wasmHash())
+    : null;
+}
+
+/**
+ * Decode each contract creation (CreateContract, CreateContractV2) and WASM
+ * upload in a transaction, in operation order. An upload carries its code, so
+ * its hash is computed here with SHA-256, the hash the ledger stores it under.
+ */
+export async function decodeDeployments(
+  envelope: xdr.TransactionEnvelope
+): Promise<ContractDeployment[]> {
+  try {
+    const tx = v1Tx(envelope);
+    if (!tx) return [];
+    const deployments: ContractDeployment[] = [];
+    const operations = tx.operations();
+    for (
+      let operationIndex = 0;
+      operationIndex < operations.length;
+      operationIndex++
+    ) {
+      const op = operations[operationIndex];
+      if (op.body().switch().name !== "invokeHostFunction") continue;
+      const hostFn = op.body().invokeHostFunctionOp().hostFunction();
+      const kind = hostFn.switch().name;
+      if (kind === "hostFunctionTypeCreateContractV2") {
+        const args = hostFn.createContractV2();
+        deployments.push({
+          operationIndex,
+          kind: "createContractV2",
+          wasmHash: wasmHashOf(args.executable()),
+          constructorArgs: args.constructorArgs().map(scValToDisplay),
+        });
+      } else if (kind === "hostFunctionTypeCreateContract") {
+        deployments.push({
+          operationIndex,
+          kind: "createContract",
+          wasmHash: wasmHashOf(hostFn.createContract().executable()),
+          constructorArgs: [],
+        });
+      } else if (kind === "hostFunctionTypeUploadContractWasm") {
+        const wasm = hostFn.wasm();
+        const digest = await crypto.subtle.digest(
+          "SHA-256",
+          new Uint8Array(wasm)
+        );
+        deployments.push({
+          operationIndex,
+          kind: "uploadWasm",
+          wasmHash: bytesToHex(new Uint8Array(digest)),
+          wasmSize: wasm.length,
+          constructorArgs: [],
+        });
+      }
+    }
+    return deployments;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Decode the authorization entries each InvokeHostFunction operation carries,
+ * in operation order. Operations with no entries are left out.
+ */
+export function decodeAuthorizations(
+  envelope: xdr.TransactionEnvelope
+): OperationAuthorizations[] {
+  try {
+    const tx = v1Tx(envelope);
+    if (!tx) return [];
+    const out: OperationAuthorizations[] = [];
+    tx.operations().forEach((op, operationIndex) => {
+      if (op.body().switch().name !== "invokeHostFunction") return;
+      const entries = op.body().invokeHostFunctionOp().auth();
+      if (entries.length) {
+        out.push({
+          operationIndex,
+          entries: entries.map(decodeAuthorizationEntry),
+        });
+      }
+    });
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 function bytesToHex(bytes: Iterable<number>): string {
