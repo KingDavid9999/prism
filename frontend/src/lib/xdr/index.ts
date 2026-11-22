@@ -23,6 +23,10 @@ export type {
 export {
   decodeInvocations,
   decodeInvocation,
+  decodeAuthorizations,
+  decodeAuthorizationEntry,
+  decodeDeployments,
+  describeCredentials,
   getResourceUsage,
 } from "./invocation";
 export {
