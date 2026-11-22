@@ -435,6 +435,108 @@ describe("decodeAnyXdr", () => {
   });
 });
 
+describe("identifyXdr / decodeAnyXdr for Soroban blobs", () => {
+  const CONTRACT = "CDPUJYCTPGPEGS6MBXYLEWTYSGCPVKUHCURLF2ORT3RAVL5TF5JKIAI5";
+  const summary = (base64: string) =>
+    Object.fromEntries(
+      (decodeAnyXdr(base64)?.fields ?? []).map((f) => [f.label, f.value])
+    );
+  const contractEvent = () =>
+    new xdr.ContractEvent({
+      ext: new xdr.ExtensionPoint(0),
+      contractId: Buffer.alloc(32, 4) as unknown as xdr.Hash,
+      type: xdr.ContractEventType.contract(),
+      body: new xdr.ContractEventBody(
+        0,
+        new xdr.ContractEventV0({
+          topics: [xdr.ScVal.scvSymbol("transfer")],
+          data: xdr.ScVal.scvU32(9),
+        })
+      ),
+    });
+
+  it("identifies and summarizes a SorobanAuthorizationEntry", () => {
+    const author = Keypair.random().publicKey();
+    const entry = new xdr.SorobanAuthorizationEntry({
+      credentials: xdr.SorobanCredentials.sorobanCredentialsAddress(
+        new xdr.SorobanAddressCredentials({
+          address: new Address(author).toScAddress(),
+          nonce: new xdr.Int64(7),
+          signatureExpirationLedger: 1234,
+          signature: xdr.ScVal.scvVoid(),
+        })
+      ),
+      rootInvocation: new xdr.SorobanAuthorizedInvocation({
+        function:
+          xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
+            new xdr.InvokeContractArgs({
+              contractAddress: new Address(CONTRACT).toScAddress(),
+              functionName: "transfer",
+              args: [xdr.ScVal.scvU32(5)],
+            })
+          ),
+        subInvocations: [],
+      }),
+    });
+
+    const base64 = entry.toXDR("base64");
+    expect(identifyXdr(base64)).toBe("SorobanAuthorizationEntry");
+    expect(summary(base64)).toEqual({
+      "Authorized by": `${author} (nonce 7, expires at ledger 1234)`,
+      "Root invocation": `${CONTRACT}.transfer(5)`,
+      "Sub-invocations": "0",
+    });
+  });
+
+  it("identifies and summarizes a SorobanTransactionData", () => {
+    const data = new xdr.SorobanTransactionData({
+      ext: new xdr.SorobanTransactionDataExt(0),
+      resources: new xdr.SorobanResources({
+        footprint: new xdr.LedgerFootprint({ readOnly: [], readWrite: [] }),
+        instructions: 1500,
+        diskReadBytes: 200,
+        writeBytes: 100,
+      }),
+      resourceFee: xdr.Int64.fromString("5000"),
+    });
+
+    const base64 = data.toXDR("base64");
+    expect(identifyXdr(base64)).toBe("SorobanTransactionData");
+    expect(summary(base64)).toEqual({
+      Instructions: "1500",
+      "Read / write bytes": "200 / 100",
+      "Resource fee": "5000 stroops",
+      Footprint: "0 read-only, 0 read-write",
+    });
+  });
+
+  it("identifies and summarizes a ContractEvent", () => {
+    const base64 = contractEvent().toXDR("base64");
+    expect(identifyXdr(base64)).toBe("ContractEvent");
+    expect(summary(base64)).toEqual({
+      "Event type": "contract",
+      Contract: StrKey.encodeContract(Buffer.alloc(32, 4)),
+      Topics: "transfer",
+      Data: "9",
+    });
+  });
+
+  it("identifies and summarizes a DiagnosticEvent", () => {
+    const diagnostic = (inSuccessfulContractCall: boolean) =>
+      new xdr.DiagnosticEvent({
+        inSuccessfulContractCall,
+        event: contractEvent(),
+      });
+
+    for (const flag of [true, false]) {
+      const base64 = diagnostic(flag).toXDR("base64");
+      expect(identifyXdr(base64)).toBe("DiagnosticEvent");
+      expect(summary(base64)["In successful contract call"]).toBe(String(flag));
+      expect(summary(base64)["Topics"]).toBe("transfer");
+    }
+  });
+});
+
 /** Unsigned LEB128, the length encoding WASM section headers use. */
 function leb128(value: number): Buffer {
   const bytes: number[] = [];

@@ -1,6 +1,11 @@
 import { Address, xdr } from "@stellar/stellar-sdk";
 import type {
+  AuthorizationCredentials,
+  AuthorizationEntry,
+  AuthorizedInvocationNode,
+  ContractDeployment,
   FootprintEntry,
+  OperationAuthorizations,
   OperationInvocation,
   ResourceUsage,
   SorobanInvocation,
@@ -60,6 +65,160 @@ export function decodeInvocation(
   envelope: xdr.TransactionEnvelope
 ): SorobanInvocation | null {
   return decodeInvocations(envelope)[0] ?? null;
+}
+
+/** One line saying who signed an authorization entry. */
+export function describeCredentials(
+  credentials: AuthorizationCredentials
+): string {
+  switch (credentials.kind) {
+    case "sourceAccount":
+      return "transaction source account";
+    case "address":
+      return `${credentials.address} (nonce ${credentials.nonce}, expires at ledger ${credentials.expirationLedger})`;
+    case "other":
+      return credentials.type;
+  }
+}
+
+function describeAuthorizedFunction(fn: xdr.SorobanAuthorizedFunction): string {
+  if (fn.switch().name !== "sorobanAuthorizedFunctionTypeContractFn") {
+    return "create contract";
+  }
+  const call = fn.contractFn();
+  const contract = Address.fromScAddress(call.contractAddress()).toString();
+  const args = call.args().map(scValToDisplay).join(", ");
+  return `${contract}.${call.functionName().toString()}(${args})`;
+}
+
+function authorizedInvocationNode(
+  invocation: xdr.SorobanAuthorizedInvocation
+): AuthorizedInvocationNode {
+  return {
+    label: describeAuthorizedFunction(invocation.function()),
+    subInvocations: invocation.subInvocations().map(authorizedInvocationNode),
+  };
+}
+
+/**
+ * Decode one SorobanAuthorizationEntry: the credentials that authorized it and
+ * the call tree it covers. The tree's sub-invocations are the contract-to-
+ * contract calls made under that authorization.
+ */
+export function decodeAuthorizationEntry(
+  entry: xdr.SorobanAuthorizationEntry
+): AuthorizationEntry {
+  const credentials = entry.credentials();
+  const kind = credentials.switch().name;
+  let description: AuthorizationCredentials;
+  if (kind === "sorobanCredentialsSourceAccount") {
+    description = { kind: "sourceAccount" };
+  } else if (kind === "sorobanCredentialsAddress") {
+    const address = credentials.address();
+    description = {
+      kind: "address",
+      address: Address.fromScAddress(address.address()).toString(),
+      nonce: address.nonce().toString(),
+      expirationLedger: address.signatureExpirationLedger(),
+    };
+  } else {
+    description = { kind: "other", type: kind };
+  }
+  return {
+    credentials: description,
+    root: authorizedInvocationNode(entry.rootInvocation()),
+  };
+}
+
+function wasmHashOf(executable: xdr.ContractExecutable): string | null {
+  return executable.switch().name === "contractExecutableWasm"
+    ? bytesToHex(executable.wasmHash())
+    : null;
+}
+
+/**
+ * Decode each contract creation (CreateContract, CreateContractV2) and WASM
+ * upload in a transaction, in operation order. An upload carries its code, so
+ * its hash is computed here with SHA-256, the hash the ledger stores it under.
+ */
+export async function decodeDeployments(
+  envelope: xdr.TransactionEnvelope
+): Promise<ContractDeployment[]> {
+  try {
+    const tx = v1Tx(envelope);
+    if (!tx) return [];
+    const deployments: ContractDeployment[] = [];
+    const operations = tx.operations();
+    for (
+      let operationIndex = 0;
+      operationIndex < operations.length;
+      operationIndex++
+    ) {
+      const op = operations[operationIndex];
+      if (op.body().switch().name !== "invokeHostFunction") continue;
+      const hostFn = op.body().invokeHostFunctionOp().hostFunction();
+      const kind = hostFn.switch().name;
+      if (kind === "hostFunctionTypeCreateContractV2") {
+        const args = hostFn.createContractV2();
+        deployments.push({
+          operationIndex,
+          kind: "createContractV2",
+          wasmHash: wasmHashOf(args.executable()),
+          constructorArgs: args.constructorArgs().map(scValToDisplay),
+        });
+      } else if (kind === "hostFunctionTypeCreateContract") {
+        deployments.push({
+          operationIndex,
+          kind: "createContract",
+          wasmHash: wasmHashOf(hostFn.createContract().executable()),
+          constructorArgs: [],
+        });
+      } else if (kind === "hostFunctionTypeUploadContractWasm") {
+        const wasm = hostFn.wasm();
+        const digest = await crypto.subtle.digest(
+          "SHA-256",
+          new Uint8Array(wasm)
+        );
+        deployments.push({
+          operationIndex,
+          kind: "uploadWasm",
+          wasmHash: bytesToHex(new Uint8Array(digest)),
+          wasmSize: wasm.length,
+          constructorArgs: [],
+        });
+      }
+    }
+    return deployments;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Decode the authorization entries each InvokeHostFunction operation carries,
+ * in operation order. Operations with no entries are left out.
+ */
+export function decodeAuthorizations(
+  envelope: xdr.TransactionEnvelope
+): OperationAuthorizations[] {
+  try {
+    const tx = v1Tx(envelope);
+    if (!tx) return [];
+    const out: OperationAuthorizations[] = [];
+    tx.operations().forEach((op, operationIndex) => {
+      if (op.body().switch().name !== "invokeHostFunction") return;
+      const entries = op.body().invokeHostFunctionOp().auth();
+      if (entries.length) {
+        out.push({
+          operationIndex,
+          entries: entries.map(decodeAuthorizationEntry),
+        });
+      }
+    });
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 function bytesToHex(bytes: Iterable<number>): string {

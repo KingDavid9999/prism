@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { xdr } from "@stellar/stellar-sdk";
+import { StrKey, xdr } from "@stellar/stellar-sdk";
 import {
   getTransaction,
   getTransactionOperations,
@@ -9,10 +9,14 @@ import {
 import CopyButton from "@/components/CopyButton";
 import { getInvocationReturnValue } from "@/lib/soroban";
 import {
+  decodeAuthorizations,
+  decodeDeployments,
   decodeInvocations,
   decodeTransactionFailure,
+  describeCredentials,
   getResourceUsage,
 } from "@/lib/xdr";
+import type { AuthorizationEntry, AuthorizedInvocationNode } from "@/types";
 import {
   formatDate,
   formatFee,
@@ -81,9 +85,18 @@ export default async function TxPage({ params }: Props) {
   const failureUndecodable = outcome?.status === "undecodable";
 
   const invocations = envelope ? decodeInvocations(envelope) : [];
+  const deployments = envelope ? await decodeDeployments(envelope) : [];
+  const authorizations = envelope ? decodeAuthorizations(envelope) : [];
+  const authorizationsFor = (operationIndex: number) =>
+    authorizations.find((a) => a.operationIndex === operationIndex)?.entries ??
+    [];
   const resources = envelope ? getResourceUsage(envelope, tx.fee) : null;
+  // A Soroban transaction has one operation, so its return value belongs to
+  // the invocation or the contract it creates.
   const returnValue =
-    invocations.length > 0 ? await getInvocationReturnValue(tx.hash) : null;
+    invocations.length > 0 || deployments.length > 0
+      ? await getInvocationReturnValue(tx.hash)
+      : null;
 
   // Non-Soroban transactions have no invocation panel, so their operations
   // would otherwise be visible only as a count. The operations resource is
@@ -355,6 +368,11 @@ export default async function TxPage({ params }: Props) {
               </div>
             </div>
           )}
+          {authorizationsFor(invocation.operationIndex).length > 0 && (
+            <AuthorizationTree
+              entries={authorizationsFor(invocation.operationIndex)}
+            />
+          )}
           {/* Return value and resource usage describe the whole transaction, so they appear once, under the first call. */}
           {i === 0 && returnValue !== null && (
             <DetailRow label="Return Value" value={returnValue} mono />
@@ -363,6 +381,75 @@ export default async function TxPage({ params }: Props) {
         </div>
       ))}
 
+      {deployments.map((deployment) => {
+        const newContract =
+          deployment.kind !== "uploadWasm" &&
+          returnValue !== null &&
+          StrKey.isValidContract(returnValue)
+            ? returnValue
+            : null;
+        return (
+          <div
+            key={`deployment-${deployment.operationIndex}`}
+            className="mt-6 rounded-xl border border-prism-border bg-prism-surface p-6 space-y-4"
+          >
+            <h2 className="text-lg font-semibold mb-1">
+              {deployment.kind === "uploadWasm"
+                ? "WASM Upload"
+                : deployment.kind === "createContractV2"
+                  ? "Contract Deployment (v2)"
+                  : "Contract Deployment"}{" "}
+              <span className="text-sm font-mono text-prism-muted">
+                operation #{deployment.operationIndex}
+              </span>
+            </h2>
+            {deployment.wasmHash && (
+              <DetailRow label="WASM hash" value={deployment.wasmHash} mono />
+            )}
+            {deployment.wasmSize !== undefined && (
+              <DetailRow
+                label="WASM size"
+                value={`${formatNumber(deployment.wasmSize)} bytes`}
+              />
+            )}
+            {newContract && (
+              <DetailRow
+                label="New contract"
+                value={newContract}
+                mono
+                link={`/contract/${newContract}`}
+              />
+            )}
+            {deployment.kind === "createContractV2" && (
+              <div className="border-b border-prism-border pb-3">
+                <p className="text-prism-muted text-sm mb-2">
+                  Constructor arguments
+                </p>
+                {deployment.constructorArgs.length === 0 ? (
+                  <p className="text-xs font-mono text-prism-muted">(none)</p>
+                ) : (
+                  <div className="space-y-1">
+                    {deployment.constructorArgs.map((a, i) => (
+                      <p
+                        key={i}
+                        className="text-xs font-mono text-prism-muted break-all"
+                      >
+                        {a}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {authorizationsFor(deployment.operationIndex).length > 0 && (
+              <AuthorizationTree
+                entries={authorizationsFor(deployment.operationIndex)}
+              />
+            )}
+          </div>
+        );
+      })}
+
       {resources && invocations.length === 0 && (
         <div className="mt-6 rounded-xl border border-prism-border bg-prism-surface p-6 space-y-4">
           <h2 className="text-lg font-semibold">Soroban Resources</h2>
@@ -370,5 +457,45 @@ export default async function TxPage({ params }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Who authorized a call, and the call tree each authorization covers. */
+function AuthorizationTree({ entries }: { entries: AuthorizationEntry[] }) {
+  return (
+    <div className="border-b border-prism-border pb-3">
+      <p className="text-prism-muted text-sm mb-2">Authorization</p>
+      <ul className="space-y-3">
+        {entries.map((entry, i) => (
+          <li key={i} className="text-xs">
+            <p className="text-prism-muted break-all">
+              Authorized by{" "}
+              <span className="font-mono">
+                {describeCredentials(entry.credentials)}
+              </span>
+            </p>
+            <ul className="mt-1 space-y-1">
+              <AuthorizedCall node={entry.root} />
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** One call in an authorization tree, with the contract-to-contract calls it made nested under it. */
+function AuthorizedCall({ node }: { node: AuthorizedInvocationNode }) {
+  return (
+    <li className="font-mono break-all">
+      {node.label}
+      {node.subInvocations.length > 0 && (
+        <ul className="mt-1 ml-4 space-y-1 list-disc">
+          {node.subInvocations.map((child, i) => (
+            <AuthorizedCall key={i} node={child} />
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }

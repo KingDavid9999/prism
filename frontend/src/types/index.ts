@@ -201,6 +201,50 @@ export interface OperationInvocation extends SorobanInvocation {
   operationIndex: number;
 }
 
+/** Who signed an authorization entry: the transaction's source account, or a Soroban address. */
+export type AuthorizationCredentials =
+  | { kind: "sourceAccount" }
+  | {
+      kind: "address";
+      address: string;
+      nonce: string;
+      expirationLedger: number;
+    }
+  | { kind: "other"; type: string };
+
+/** A call in an authorization tree, with the contract-to-contract calls it made. */
+export interface AuthorizedInvocationNode {
+  label: string;
+  subInvocations: AuthorizedInvocationNode[];
+}
+
+/** One SorobanAuthorizationEntry: who authorized which call tree. */
+export interface AuthorizationEntry {
+  credentials: AuthorizationCredentials;
+  root: AuthorizedInvocationNode;
+}
+
+/** One InvokeHostFunction operation's authorization entries. */
+export interface OperationAuthorizations {
+  operationIndex: number;
+  entries: AuthorizationEntry[];
+}
+
+/** A contract creation or WASM upload from one operation. */
+export interface ContractDeployment {
+  operationIndex: number;
+  kind: "createContract" | "createContractV2" | "uploadWasm";
+  /**
+   * Hex hash of the WASM the new contract runs (creates), or of the uploaded
+   * code (uploads). Null for a Stellar asset contract, which has no WASM.
+   */
+  wasmHash: string | null;
+  /** Byte length of an uploaded WASM. */
+  wasmSize?: number;
+  /** Constructor arguments; only CreateContractV2 carries them. */
+  constructorArgs: string[];
+}
+
 /** One ledger entry touched by a Soroban transaction. */
 export interface FootprintEntry {
   access: "read" | "write";
