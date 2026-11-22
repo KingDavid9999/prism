@@ -85,10 +85,30 @@ const EVENT_DATA_FORMATS: Record<string, ParsedEventSpec["dataFormat"]> = {
 
 /** A type a contract defines in its own spec — the names that appear in its signatures. */
 export type ParsedTypeDef =
-  | { kind: "struct"; name: string; doc?: string; fields: { name: string; type: string }[] }
-  | { kind: "union"; name: string; doc?: string; cases: { name: string; types: string[] }[] }
-  | { kind: "enum"; name: string; doc?: string; cases: { name: string; value: number }[] }
-  | { kind: "error"; name: string; doc?: string; cases: { name: string; value: number }[] };
+  | {
+      kind: "struct";
+      name: string;
+      doc?: string;
+      fields: { name: string; type: string }[];
+    }
+  | {
+      kind: "union";
+      name: string;
+      doc?: string;
+      cases: { name: string; types: string[] }[];
+    }
+  | {
+      kind: "enum";
+      name: string;
+      doc?: string;
+      cases: { name: string; value: number }[];
+    }
+  | {
+      kind: "error";
+      name: string;
+      doc?: string;
+      cases: { name: string; value: number }[];
+    };
 
 /**
  * Parse the structs, unions and enums a contract defines.

@@ -10,7 +10,9 @@ import { scValToDisplay, scValTypeLabel } from "./display";
  * Describe one authorized call tree — the root call plus any nested
  * sub-invocations a contract forwards on the signer's behalf.
  */
-function describeAuthorizedInvocation(inv: xdr.SorobanAuthorizedInvocation): string {
+function describeAuthorizedInvocation(
+  inv: xdr.SorobanAuthorizedInvocation
+): string {
   try {
     const fn = inv.function();
     let call: string;
@@ -36,16 +38,22 @@ function describeAuthorizedInvocation(inv: xdr.SorobanAuthorizedInvocation): str
  * Turn simulation `result.auth` entries into lines of the form
  * "address X authorizes contract.fn(args)", including nested calls.
  */
-export function describeAuthorizations(auth: xdr.SorobanAuthorizationEntry[]): string[] {
+export function describeAuthorizations(
+  auth: xdr.SorobanAuthorizationEntry[]
+): string[] {
   return auth.map((entry) => {
     try {
       const credentials = entry.credentials();
       const kind = credentials.switch().name;
       let signer = "source account";
       if (kind === "sorobanCredentialsAddress") {
-        signer = Address.fromScAddress(credentials.address().address()).toString();
+        signer = Address.fromScAddress(
+          credentials.address().address()
+        ).toString();
       } else if (kind === "sorobanCredentialsAddressV2") {
-        signer = Address.fromScAddress(credentials.addressV2().address()).toString();
+        signer = Address.fromScAddress(
+          credentials.addressV2().address()
+        ).toString();
       } else if (kind === "sorobanCredentialsAddressWithDelegates") {
         signer = Address.fromScAddress(
           credentials.addressWithDelegates().addressCredentials().address()
@@ -110,7 +118,9 @@ export function describeLedgerKey(key: xdr.LedgerKey): string {
       return `wasm ${key.contractCode().hash().toString("hex")}`;
     }
     if (type === "account") {
-      return Address.account(Buffer.from(key.account().accountId().ed25519())).toString();
+      return Address.account(
+        Buffer.from(key.account().accountId().ed25519())
+      ).toString();
     }
     return type;
   } catch {
@@ -119,7 +129,9 @@ export function describeLedgerKey(key: xdr.LedgerKey): string {
 }
 
 /** Decode a simulation's Soroban resources into the figures the UI displays. */
-export function decodeSimulationFootprint(resources: xdr.SorobanResources): SimulationFootprint {
+export function decodeSimulationFootprint(
+  resources: xdr.SorobanResources
+): SimulationFootprint {
   const footprint = resources.footprint();
   return {
     readOnly: footprint.readOnly().map(describeLedgerKey),

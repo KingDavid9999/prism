@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { configWarnings, detectNetworkFromUrl, parseNetwork, resolveConfig, rpcNetworkWarnings } from "./config";
+import {
+  configWarnings,
+  detectNetworkFromUrl,
+  parseNetwork,
+  resolveConfig,
+  rpcNetworkWarnings,
+} from "./config";
 
 describe("parseNetwork", () => {
   it("accepts the documented values", () => {
@@ -49,7 +55,9 @@ describe("resolveConfig", () => {
   });
 
   it("strips trailing slashes so path concatenation can't double up", () => {
-    const cfg = resolveConfig({ NEXT_PUBLIC_HORIZON_URL: "https://horizon.example.com/" });
+    const cfg = resolveConfig({
+      NEXT_PUBLIC_HORIZON_URL: "https://horizon.example.com/",
+    });
     expect(cfg.horizonUrl).toBe("https://horizon.example.com");
   });
 
@@ -61,11 +69,19 @@ describe("resolveConfig", () => {
 
 describe("detectNetworkFromUrl", () => {
   it("recognizes the public endpoints for each network", () => {
-    expect(detectNetworkFromUrl("https://horizon-testnet.stellar.org")).toBe("testnet");
-    expect(detectNetworkFromUrl("https://soroban-testnet.stellar.org")).toBe("testnet");
+    expect(detectNetworkFromUrl("https://horizon-testnet.stellar.org")).toBe(
+      "testnet"
+    );
+    expect(detectNetworkFromUrl("https://soroban-testnet.stellar.org")).toBe(
+      "testnet"
+    );
     expect(detectNetworkFromUrl("https://horizon.stellar.org")).toBe("mainnet");
-    expect(detectNetworkFromUrl("https://mainnet.sorobanrpc.com")).toBe("mainnet");
-    expect(detectNetworkFromUrl("https://rpc-futurenet.stellar.org")).toBe("futurenet");
+    expect(detectNetworkFromUrl("https://mainnet.sorobanrpc.com")).toBe(
+      "mainnet"
+    );
+    expect(detectNetworkFromUrl("https://rpc-futurenet.stellar.org")).toBe(
+      "futurenet"
+    );
   });
 
   it("returns null for a self-hosted node with no hint in the hostname", () => {
@@ -79,7 +95,9 @@ describe("detectNetworkFromUrl", () => {
 
 describe("configWarnings", () => {
   it("is silent on a coherent deployment", () => {
-    expect(configWarnings(resolveConfig({ NEXT_PUBLIC_NETWORK: "mainnet" }))).toEqual([]);
+    expect(
+      configWarnings(resolveConfig({ NEXT_PUBLIC_NETWORK: "mainnet" }))
+    ).toEqual([]);
     expect(configWarnings(resolveConfig({}))).toEqual([]);
   });
 
@@ -120,13 +138,15 @@ describe("parseNetwork for local networks", () => {
 
 describe("public network passphrases", () => {
   it("match the ones the Stellar SDK uses", () => {
-    expect(resolveConfig({ NEXT_PUBLIC_NETWORK: "testnet" }).networkPassphrase).toBe("Test SDF Network ; September 2015");
-    expect(resolveConfig({ NEXT_PUBLIC_NETWORK: "mainnet" }).networkPassphrase).toBe(
-      "Public Global Stellar Network ; September 2015"
-    );
-    expect(resolveConfig({ NEXT_PUBLIC_NETWORK: "futurenet" }).networkPassphrase).toBe(
-      "Test SDF Future Network ; October 2022"
-    );
+    expect(
+      resolveConfig({ NEXT_PUBLIC_NETWORK: "testnet" }).networkPassphrase
+    ).toBe("Test SDF Network ; September 2015");
+    expect(
+      resolveConfig({ NEXT_PUBLIC_NETWORK: "mainnet" }).networkPassphrase
+    ).toBe("Public Global Stellar Network ; September 2015");
+    expect(
+      resolveConfig({ NEXT_PUBLIC_NETWORK: "futurenet" }).networkPassphrase
+    ).toBe("Test SDF Future Network ; October 2022");
   });
 });
 
@@ -153,9 +173,9 @@ describe("local network", () => {
   });
 
   it("names only the variables that are missing", () => {
-    expect(() => resolveConfig({ ...local, NEXT_PUBLIC_HORIZON_URL: "" })).toThrow(
-      /requires NEXT_PUBLIC_HORIZON_URL /
-    );
+    expect(() =>
+      resolveConfig({ ...local, NEXT_PUBLIC_HORIZON_URL: "" })
+    ).toThrow(/requires NEXT_PUBLIC_HORIZON_URL /);
   });
 
   it("is never flagged by hostname checks", () => {
@@ -171,9 +191,16 @@ describe("rpcNetworkWarnings", () => {
   function stubRpcPassphrase(passphrase: string) {
     const fetchMock = vi.fn(
       async () =>
-        new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { passphrase, protocolVersion: 21 } }), {
-          status: 200,
-        })
+        new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            result: { passphrase, protocolVersion: 21 },
+          }),
+          {
+            status: 200,
+          }
+        )
     );
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
@@ -201,7 +228,9 @@ describe("rpcNetworkWarnings", () => {
   });
 
   it("caches a successful lookup per URL", async () => {
-    const fetchMock = stubRpcPassphrase("Public Global Stellar Network ; September 2015");
+    const fetchMock = stubRpcPassphrase(
+      "Public Global Stellar Network ; September 2015"
+    );
     const cfg = resolveConfig({
       NEXT_PUBLIC_NETWORK: "mainnet",
       NEXT_PUBLIC_SOROBAN_RPC_URL: "https://rpc-cache.example.com",
@@ -212,9 +241,12 @@ describe("rpcNetworkWarnings", () => {
   });
 
   it("gives no warning for an unreachable node, and retries on the next call", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new Error("offline");
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      })
+    );
     const cfg = resolveConfig({
       NEXT_PUBLIC_NETWORK: "mainnet",
       NEXT_PUBLIC_SOROBAN_RPC_URL: "https://rpc-down.example.com",

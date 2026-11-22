@@ -42,7 +42,10 @@ async function get<T>(path: string, revalidate = REVALIDATE_SHORT): Promise<T> {
   if (!res.ok) {
     const detail = await problemDetail(res);
     // A 404 is an ordinary answer ("no such record"), so it stays out of the log.
-    if (res.status !== 404) console.error(`Horizon ${res.status} for ${path}: ${detail ?? "no detail"}`);
+    if (res.status !== 404)
+      console.error(
+        `Horizon ${res.status} for ${path}: ${detail ?? "no detail"}`
+      );
     throw new HorizonError(res.status, path, detail);
   }
   return res.json();
@@ -172,7 +175,11 @@ interface HorizonAccount {
   sequence: string;
   subentry_count: number;
   last_modified_ledger: number;
-  thresholds: { low_threshold: number; med_threshold: number; high_threshold: number };
+  thresholds: {
+    low_threshold: number;
+    med_threshold: number;
+    high_threshold: number;
+  };
   flags: {
     auth_required: boolean;
     auth_revocable: boolean;
@@ -188,17 +195,25 @@ interface HorizonAccount {
 }
 
 export async function getLatestLedger(): Promise<LedgerRecord> {
-  const data = await get<HorizonPage<HorizonLedger>>("/ledgers?order=desc&limit=1");
+  const data = await get<HorizonPage<HorizonLedger>>(
+    "/ledgers?order=desc&limit=1"
+  );
   return mapLedger(data._embedded.records[0]);
 }
 
 export async function getLedger(sequence: number): Promise<LedgerRecord> {
-  const data = await get<HorizonLedger>(`/ledgers/${sequence}`, REVALIDATE_FINALIZED);
+  const data = await get<HorizonLedger>(
+    `/ledgers/${sequence}`,
+    REVALIDATE_FINALIZED
+  );
   return mapLedger(data);
 }
 
 export async function getTransaction(hash: string): Promise<TransactionRecord> {
-  const data = await get<HorizonTransaction>(`/transactions/${hash}`, REVALIDATE_FINALIZED);
+  const data = await get<HorizonTransaction>(
+    `/transactions/${hash}`,
+    REVALIDATE_FINALIZED
+  );
   return mapTransaction(data);
 }
 
@@ -206,7 +221,9 @@ export async function getTransaction(hash: string): Promise<TransactionRecord> {
  * Operations are a separate Horizon resource. A transaction holds at most 100
  * of them, so one page covers every case without following cursors.
  */
-export async function getTransactionOperations(hash: string): Promise<OperationRecord[]> {
+export async function getTransactionOperations(
+  hash: string
+): Promise<OperationRecord[]> {
   const data = await get<HorizonPage<HorizonOperation>>(
     `/transactions/${hash}/operations?limit=200`,
     REVALIDATE_FINALIZED
@@ -214,8 +231,12 @@ export async function getTransactionOperations(hash: string): Promise<OperationR
   return data._embedded.records.map(mapOperation);
 }
 
-export async function getRecentTransactions(limit = 20): Promise<TransactionRecord[]> {
-  const data = await get<HorizonPage<HorizonTransaction>>(`/transactions?order=desc&limit=${limit}`);
+export async function getRecentTransactions(
+  limit = 20
+): Promise<TransactionRecord[]> {
+  const data = await get<HorizonPage<HorizonTransaction>>(
+    `/transactions?order=desc&limit=${limit}`
+  );
   return data._embedded.records.map(mapTransaction);
 }
 
@@ -238,7 +259,8 @@ export async function getAccountTransactions(
   const records = data._embedded.records.map(mapTransaction);
 
   // The cursor for the next page is the paging_token of the last record
-  const nextCursor = records.length > 0 ? records[records.length - 1].pagingToken : undefined;
+  const nextCursor =
+    records.length > 0 ? records[records.length - 1].pagingToken : undefined;
 
   return { records, nextCursor };
 }
@@ -259,7 +281,8 @@ export async function getLedgerTransactions(
   );
 
   const records = data._embedded.records.map(mapTransaction);
-  const nextCursor = records.length > 0 ? records[records.length - 1].pagingToken : undefined;
+  const nextCursor =
+    records.length > 0 ? records[records.length - 1].pagingToken : undefined;
 
   return { records, nextCursor };
 }
@@ -278,7 +301,9 @@ export interface NetworkPulse {
  * to smooth out ledger-to-ledger noise. Issue #284.
  */
 export async function getNetworkPulse(): Promise<NetworkPulse> {
-  const data = await get<HorizonPage<HorizonLedger>>("/ledgers?order=desc&limit=10");
+  const data = await get<HorizonPage<HorizonLedger>>(
+    "/ledgers?order=desc&limit=10"
+  );
   const records = data._embedded.records;
   const latest = records[0];
 
@@ -290,15 +315,19 @@ export async function getNetworkPulse(): Promise<NetworkPulse> {
     const current = records[i];
     const prev = records[i + 1];
     const closeTime =
-      (new Date(current.closed_at).getTime() - new Date(prev.closed_at).getTime()) / 1000;
-    const txCount = current.successful_transaction_count + current.failed_transaction_count;
+      (new Date(current.closed_at).getTime() -
+        new Date(prev.closed_at).getTime()) /
+      1000;
+    const txCount =
+      current.successful_transaction_count + current.failed_transaction_count;
 
     totalCloseTime += closeTime;
     totalTransactions += txCount;
   }
 
   const avgCloseTime = totalCloseTime / (records.length - 1);
-  const avgTransactionsPerSecond = avgCloseTime > 0 ? totalTransactions / totalCloseTime : 0;
+  const avgTransactionsPerSecond =
+    avgCloseTime > 0 ? totalTransactions / totalCloseTime : 0;
 
   return {
     sequence: latest.sequence,
@@ -323,7 +352,8 @@ function mapLedger(r: HorizonLedger): LedgerRecord {
     sequence: r.sequence,
     hash: r.hash,
     closedAt: r.closed_at,
-    transactionCount: r.successful_transaction_count + r.failed_transaction_count,
+    transactionCount:
+      r.successful_transaction_count + r.failed_transaction_count,
     operationCount: r.operation_count,
     baseFee: r.base_fee_in_stroops,
     successfulTransactionCount: r.successful_transaction_count,
@@ -424,7 +454,10 @@ function mapOperation(r: HorizonOperation): OperationRecord {
       fields.push(
         { label: "From", value: String(r.from ?? ""), mono: true },
         { label: "To", value: String(r.to ?? ""), mono: true },
-        { label: "Asset", value: assetLabel(r.asset_type, r.asset_code, r.asset_issuer) },
+        {
+          label: "Asset",
+          value: assetLabel(r.asset_type, r.asset_code, r.asset_issuer),
+        },
         { label: "Amount", value: String(r.amount ?? "") }
       );
       break;
@@ -433,11 +466,18 @@ function mapOperation(r: HorizonOperation): OperationRecord {
       fields.push(
         { label: "From", value: String(r.from ?? ""), mono: true },
         { label: "To", value: String(r.to ?? ""), mono: true },
-        { label: "Asset", value: assetLabel(r.asset_type, r.asset_code, r.asset_issuer) },
+        {
+          label: "Asset",
+          value: assetLabel(r.asset_type, r.asset_code, r.asset_issuer),
+        },
         { label: "Amount", value: String(r.amount ?? "") },
         {
           label: "Source asset",
-          value: assetLabel(r.source_asset_type, r.source_asset_code, r.source_asset_issuer),
+          value: assetLabel(
+            r.source_asset_type,
+            r.source_asset_code,
+            r.source_asset_issuer
+          ),
         },
         { label: "Source amount", value: String(r.source_amount ?? "") }
       );
@@ -451,7 +491,10 @@ function mapOperation(r: HorizonOperation): OperationRecord {
     case "change_trust":
       fields.push(
         { label: "Trustor", value: String(r.source_account ?? ""), mono: true },
-        { label: "Asset", value: assetLabel(r.asset_type, r.asset_code, r.asset_issuer) },
+        {
+          label: "Asset",
+          value: assetLabel(r.asset_type, r.asset_code, r.asset_issuer),
+        },
         { label: "Limit", value: String(r.limit ?? "") }
       );
       break;
@@ -461,11 +504,19 @@ function mapOperation(r: HorizonOperation): OperationRecord {
         { label: "Offer ID", value: String(r.offer_id ?? "") },
         {
           label: "Selling",
-          value: assetLabel(r.selling_asset_type, r.selling_asset_code, r.selling_asset_issuer),
+          value: assetLabel(
+            r.selling_asset_type,
+            r.selling_asset_code,
+            r.selling_asset_issuer
+          ),
         },
         {
           label: "Buying",
-          value: assetLabel(r.buying_asset_type, r.buying_asset_code, r.buying_asset_issuer),
+          value: assetLabel(
+            r.buying_asset_type,
+            r.buying_asset_code,
+            r.buying_asset_issuer
+          ),
         },
         { label: "Amount", value: String(r.amount ?? "") },
         { label: "Price", value: String(r.price ?? "") }

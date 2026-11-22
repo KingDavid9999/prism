@@ -29,12 +29,16 @@ describe("resolveSearchRoute", () => {
   it("rejects a 56-char string starting with C but containing non-base32 chars", () => {
     // Lowercase letters are not valid base-32 — should fall through to /search
     const bad = "C" + "a".repeat(55);
-    expect(resolveSearchRoute(bad)).toBe(`/search?q=${encodeURIComponent(bad)}`);
+    expect(resolveSearchRoute(bad)).toBe(
+      `/search?q=${encodeURIComponent(bad)}`
+    );
   });
 
   it("rejects a 56-char string starting with C but wrong length", () => {
     const short = "C" + "A".repeat(50);
-    expect(resolveSearchRoute(short)).toBe(`/search?q=${encodeURIComponent(short)}`);
+    expect(resolveSearchRoute(short)).toBe(
+      `/search?q=${encodeURIComponent(short)}`
+    );
   });
 
   it("trims whitespace before routing", () => {

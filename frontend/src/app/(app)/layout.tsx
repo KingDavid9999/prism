@@ -8,10 +8,12 @@ import Footer from "@/components/Footer";
 export const metadata: Metadata = {
   metadataBase: new URL(config.siteUrl),
   title: "Prism — Soroban Block Explorer",
-  description: "Open-source block explorer with full Soroban smart contract support for the Stellar network.",
+  description:
+    "Open-source block explorer with full Soroban smart contract support for the Stellar network.",
   openGraph: {
     title: "Prism Explorer",
-    description: "Explore Stellar transactions, contracts, events, and storage.",
+    description:
+      "Explore Stellar transactions, contracts, events, and storage.",
     type: "website",
   },
 };
@@ -26,7 +28,11 @@ export const metadata: Metadata = {
  */
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>

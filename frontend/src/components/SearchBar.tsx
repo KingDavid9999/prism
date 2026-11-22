@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { resolveSearchRoute } from "@/lib/search";
 
-interface Props { initialValue?: string }
+interface Props {
+  initialValue?: string;
+}
 
 // Every mounted SearchBar used to add its own document listener, so one "/"
 // press ran one handler per search box on screen. A single shared listener is
@@ -30,11 +32,13 @@ export default function SearchBar({ initialValue = "" }: Props) {
   useEffect(() => {
     const input = inputRef.current;
     if (!input) return;
-    if (mountedInputs.size === 0) document.addEventListener("keydown", focusOnSlash);
+    if (mountedInputs.size === 0)
+      document.addEventListener("keydown", focusOnSlash);
     mountedInputs.add(input);
     return () => {
       mountedInputs.delete(input);
-      if (mountedInputs.size === 0) document.removeEventListener("keydown", focusOnSlash);
+      if (mountedInputs.size === 0)
+        document.removeEventListener("keydown", focusOnSlash);
     };
   }, []);
 

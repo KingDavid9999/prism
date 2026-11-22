@@ -8,7 +8,7 @@ Prism is a Soroban-native block explorer for the Stellar network. While existing
 
 The Stellar Development Foundation identified explorer support for Soroban as a critical missing piece of infrastructure:
 
-> *"Soroban needs explorers that can retrieve data about smart contracts."*
+> _"Soroban needs explorers that can retrieve data about smart contracts."_
 
 When a developer deploys a Soroban contract, they need to inspect its storage state, trace invocation history, debug failed transactions, and monitor emitted events. None of this is possible with current explorers. Prism is built to fill that gap as a community-owned, open-source tool.
 
@@ -17,23 +17,27 @@ When a developer deploys a Soroban contract, they need to inspect its storage st
 ## Features
 
 ### Contract Explorer
+
 - View deployed contract WASM bytecode and metadata
 - Inspect live contract storage (persistent, temporary, and instance storage)
 - Browse full invocation history with inputs and outputs
 - View all emitted contract events with filtering
 
 ### Transaction Explorer
+
 - Detailed transaction breakdown with Soroban-specific operation decoding
 - Transaction simulation and dry-run from the UI
 - Fee and resource usage breakdown (CPU instructions, memory, ledger reads/writes)
 - Failed transaction debugging with error messages
 
 ### Ledger & Network
+
 - Auto-refreshing ledger overview (polls every 6 seconds — no streaming connection)
 - Network statistics (TPS, ledger close time, active contracts)
 - Search by transaction hash, contract ID, account address, or ledger sequence
 
 ### Developer Tools
+
 - In-browser contract invocation (call any contract function directly from Prism)
 - ABI/interface display for verified contracts
 - XDR decoder for raw transaction data at `/xdr` — paste any base64 blob and Prism identifies the type (transaction envelope, result, meta, ledger entry/key, contract spec entry, or ScVal) before decoding it

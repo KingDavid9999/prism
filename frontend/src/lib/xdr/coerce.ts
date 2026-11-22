@@ -21,7 +21,9 @@ function splitTypeArgs(inner: string): string[] {
 }
 
 /** Match a generic spec type like "Vec<Symbol>" or "Map<Symbol, U32>". */
-function parseGeneric(specType: string): { name: string; args: string[] } | null {
+function parseGeneric(
+  specType: string
+): { name: string; args: string[] } | null {
   const match = /^([A-Za-z]+)<(.+)>$/.exec(specType.trim());
   if (!match) return null;
   return { name: match[1].toLowerCase(), args: splitTypeArgs(match[2]) };
@@ -81,7 +83,11 @@ const INTEGER_BOUNDS = {
  * accept more than that: "1.5" and "1e3" parse, and so does a value the type
  * can't hold, which the SDK then rejects or wraps.
  */
-function parseInteger(raw: string, specType: string, bounds: IntegerBounds): bigint {
+function parseInteger(
+  raw: string,
+  specType: string,
+  bounds: IntegerBounds
+): bigint {
   const digits = raw.trim();
   const pattern = bounds.min < BigInt(0) ? /^-?\d+$/ : /^\d+$/;
   const value = pattern.test(digits) ? BigInt(digits) : null;
@@ -114,14 +120,32 @@ export function coerceArgInput(
 ): xdr.ScVal {
   const t = specType.toLowerCase();
   if (t === "bool") return nativeToScVal(raw.trim().toLowerCase() === "true");
-  if (t === "u32") return nativeToScVal(Number(parseInteger(raw, specType, INTEGER_BOUNDS.u32)), { type: "u32" });
-  if (t === "i32") return nativeToScVal(Number(parseInteger(raw, specType, INTEGER_BOUNDS.i32)), { type: "i32" });
-  if (t === "u64") return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.u64), { type: "u64" });
-  if (t === "i64") return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.i64), { type: "i64" });
-  if (t === "u128") return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.u128), { type: "u128" });
-  if (t === "i128") return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.i128), { type: "i128" });
-  if (t === "u256") return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.u256), { type: "u256" });
-  if (t === "i256") return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.i256), { type: "i256" });
+  if (t === "u32")
+    return nativeToScVal(
+      Number(parseInteger(raw, specType, INTEGER_BOUNDS.u32)),
+      { type: "u32" }
+    );
+  if (t === "i32")
+    return nativeToScVal(
+      Number(parseInteger(raw, specType, INTEGER_BOUNDS.i32)),
+      { type: "i32" }
+    );
+  if (t === "u64")
+    return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.u64), {
+      type: "u64",
+    });
+  if (t === "i64")
+    return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.i64), {
+      type: "i64",
+    });
+  if (t === "u128")
+    return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.u128), {
+      type: "u128",
+    });
+  if (t === "i128")
+    return nativeToScVal(parseInteger(raw, specType, INTEGER_BOUNDS.i128), {
+      type: "i128",
+    });
   if (t === "symbol") return nativeToScVal(raw, { type: "symbol" });
   if (t === "string") return nativeToScVal(raw, { type: "string" });
   if (t === "address") {
@@ -133,7 +157,9 @@ export function coerceArgInput(
       !StrKey.isValidMed25519PublicKey(address) &&
       !StrKey.isValidContract(address)
     ) {
-      throw new Error(`"${address}" is not a valid account or contract address.`);
+      throw new Error(
+        `"${address}" is not a valid account or contract address.`
+      );
     }
     return nativeToScVal(address, { type: "address" });
   }
@@ -155,7 +181,8 @@ export function coerceArgInput(
   // An absent Option is void; anything else is the inner type.
   if (generic?.name === "option" && generic.args.length === 1) {
     const trimmed = raw.trim();
-    if (trimmed === "" || trimmed.toLowerCase() === "null") return xdr.ScVal.scvVoid();
+    if (trimmed === "" || trimmed.toLowerCase() === "null")
+      return xdr.ScVal.scvVoid();
     return coerceArgInput(raw, generic.args[0], types);
   }
 
@@ -165,13 +192,23 @@ export function coerceArgInput(
       throw new Error(`${specType} expects a JSON array, e.g. ["a", "b"].`);
     }
     return xdr.ScVal.scvVec(
-      parsed.map((item) => coerceArgInput(elementInput(item), generic.args[0], types))
+      parsed.map((item) =>
+        coerceArgInput(elementInput(item), generic.args[0], types)
+      )
     );
   }
 
   if (generic?.name === "map" && generic.args.length === 2) {
-    const parsed = parseJsonArg(raw, specType, 'a JSON object, e.g. {"key": 1}');
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    const parsed = parseJsonArg(
+      raw,
+      specType,
+      'a JSON object, e.g. {"key": 1}'
+    );
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
       throw new Error(`${specType} expects a JSON object, e.g. {"key": 1}.`);
     }
     const [keyType, valueType] = generic.args;
@@ -220,7 +257,11 @@ function isTupleStruct(fields: { name: string }[]): boolean {
  * field-name symbols, a tuple struct is a vec, a union variant is a vec led by
  * the variant's name symbol, and a u32 enum is just its discriminant.
  */
-function coerceUdtInput(raw: string, def: ParsedTypeDef, types: ParsedTypeDef[]): xdr.ScVal {
+function coerceUdtInput(
+  raw: string,
+  def: ParsedTypeDef,
+  types: ParsedTypeDef[]
+): xdr.ScVal {
   if (def.kind === "enum") {
     const trimmed = raw.trim();
     const byName = def.cases.find((c) => c.name === trimmed);
@@ -238,7 +279,9 @@ function coerceUdtInput(raw: string, def: ParsedTypeDef, types: ParsedTypeDef[])
   }
 
   if (def.kind === "error") {
-    throw new Error(`${def.name} is an error type and can't be passed as an argument.`);
+    throw new Error(
+      `${def.name} is an error type and can't be passed as an argument.`
+    );
   }
 
   if (def.kind === "union") {
@@ -264,13 +307,21 @@ function coerceUdtInput(raw: string, def: ParsedTypeDef, types: ParsedTypeDef[])
           .join(", ")}.`
       );
     }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
       throw new Error(`${def.name} expects an object like {"Variant": [...]}.`);
     }
 
-    const [[name, payload] = [], ...rest] = Object.entries(parsed as Record<string, unknown>);
+    const [[name, payload] = [], ...rest] = Object.entries(
+      parsed as Record<string, unknown>
+    );
     if (!name || rest.length > 0) {
-      throw new Error(`${def.name} expects exactly one variant, e.g. {"Variant": [...]}.`);
+      throw new Error(
+        `${def.name} expects exactly one variant, e.g. {"Variant": [...]}.`
+      );
     }
     const unionCase = def.cases.find((c) => c.name === name);
     if (!unionCase) {
@@ -287,7 +338,9 @@ function coerceUdtInput(raw: string, def: ParsedTypeDef, types: ParsedTypeDef[])
     }
     return xdr.ScVal.scvVec([
       nativeToScVal(name, { type: "symbol" }),
-      ...unionCase.types.map((type, i) => coerceArgInput(elementInput(values[i]), type, types)),
+      ...unionCase.types.map((type, i) =>
+        coerceArgInput(elementInput(values[i]), type, types)
+      ),
     ]);
   }
 
@@ -305,10 +358,14 @@ function coerceUdtInput(raw: string, def: ParsedTypeDef, types: ParsedTypeDef[])
 
   if (isTupleStruct(def.fields)) {
     if (!Array.isArray(parsed) || parsed.length !== def.fields.length) {
-      throw new Error(`${def.name} expects a JSON array of ${def.fields.length} value(s).`);
+      throw new Error(
+        `${def.name} expects a JSON array of ${def.fields.length} value(s).`
+      );
     }
     return xdr.ScVal.scvVec(
-      def.fields.map((field, i) => coerceArgInput(elementInput(parsed[i]), field.type, types))
+      def.fields.map((field, i) =>
+        coerceArgInput(elementInput(parsed[i]), field.type, types)
+      )
     );
   }
 
@@ -321,7 +378,9 @@ function coerceUdtInput(raw: string, def: ParsedTypeDef, types: ParsedTypeDef[])
   }
 
   const payload = parsed as Record<string, unknown>;
-  const missing = def.fields.filter((field) => !(field.name in payload)).map((f) => f.name);
+  const missing = def.fields
+    .filter((field) => !(field.name in payload))
+    .map((f) => f.name);
   if (missing.length > 0) {
     throw new Error(`${def.name} is missing field(s): ${missing.join(", ")}.`);
   }

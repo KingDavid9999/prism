@@ -12,7 +12,10 @@ import { config, configWarnings, rpcNetworkWarnings } from "@/lib/config";
  * Renders nothing on a coherent deployment, which is the common case.
  */
 export default async function ConfigWarning() {
-  const warnings = [...configWarnings(config), ...(await rpcNetworkWarnings(config))];
+  const warnings = [
+    ...configWarnings(config),
+    ...(await rpcNetworkWarnings(config)),
+  ];
   if (warnings.length === 0) return null;
 
   return (

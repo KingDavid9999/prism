@@ -36,7 +36,7 @@ mod test {
     #[test]
     fn nested_calls_update_showcase_and_forward_authorization() {
         let env = Env::default();
-        env.mock_all_auths();
+        env.mock_all_auths_allowing_non_root_auth();
         let showcase = env.register(Showcase, ());
         let showcase_client = ShowcaseClient::new(&env, &showcase);
         let admin = Address::generate(&env);
@@ -46,7 +46,10 @@ mod test {
         assert_eq!(client.bump_showcase(&showcase, &7), 7);
         let author = Address::generate(&env);
         let name = Symbol::new(&env, "nested");
-        assert_eq!(client.write_showcase_note(&showcase, &author, &name, &String::from_str(&env, "hello")), 1);
+        assert_eq!(
+            client.write_showcase_note(&showcase, &author, &name, &String::from_str(&env, "hello")),
+            1
+        );
         assert_eq!(showcase_client.note(&name).author, author);
     }
 
@@ -59,11 +62,13 @@ mod test {
         let caller = env.register(Caller, ());
         let client = CallerClient::new(&env, &caller);
         env.mock_auths(&[]);
-        assert!(client.try_write_showcase_note(
-            &showcase,
-            &Address::generate(&env),
-            &Symbol::new(&env, "auth"),
-            &String::from_str(&env, "blocked"),
-        ).is_err());
+        assert!(client
+            .try_write_showcase_note(
+                &showcase,
+                &Address::generate(&env),
+                &Symbol::new(&env, "auth"),
+                &String::from_str(&env, "blocked"),
+            )
+            .is_err());
     }
 }

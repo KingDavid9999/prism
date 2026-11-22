@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import SearchBar from "@/components/SearchBar";
 import { resolveSearchRoute } from "@/lib/search";
 
-interface Props { searchParams: { q?: string } }
+interface Props {
+  searchParams: { q?: string };
+}
 
 export default function SearchPage({ searchParams }: Props) {
   const query = (searchParams.q ?? "").trim();
@@ -19,8 +21,9 @@ export default function SearchPage({ searchParams }: Props) {
       <SearchBar initialValue={query} />
       {query && (
         <p className="text-prism-muted mt-6 text-sm">
-          No match for &quot;{query}&quot;. Try a transaction hash, a contract ID (starts with C), an
-          account address (starts with G), or a ledger sequence number.
+          No match for &quot;{query}&quot;. Try a transaction hash, a contract
+          ID (starts with C), an account address (starts with G), or a ledger
+          sequence number.
         </p>
       )}
     </div>

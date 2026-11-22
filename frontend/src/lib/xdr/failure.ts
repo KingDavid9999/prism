@@ -33,10 +33,15 @@ export type TransactionFailureResult =
  * each operation is reported with its own verdict rather than collapsed into a
  * single message.
  */
-export function decodeTransactionFailure(resultXdrBase64: string): TransactionFailureResult {
+export function decodeTransactionFailure(
+  resultXdrBase64: string
+): TransactionFailureResult {
   let result: xdr.TransactionResult;
   try {
-    result = xdr.TransactionResult.fromXDR(normalizeBase64(resultXdrBase64), "base64");
+    result = xdr.TransactionResult.fromXDR(
+      normalizeBase64(resultXdrBase64),
+      "base64"
+    );
   } catch {
     return { status: "undecodable" };
   }
@@ -62,8 +67,7 @@ export function decodeTransactionFailure(resultXdrBase64: string): TransactionFa
         op.switch().name === "opInner"
           ? (op.tr() as unknown as { value(): { switch(): { name: string } } })
               .value()
-              .switch()
-              .name
+              .switch().name
           : op.switch().name;
       return { index, code, failed: !/Success$/.test(code) };
     });

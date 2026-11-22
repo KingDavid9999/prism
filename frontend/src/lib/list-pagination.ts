@@ -5,7 +5,11 @@
  */
 
 /** Add a fetched page to the tail, skipping anything already held. */
-export function appendUnique<T>(current: T[], incoming: T[], key: (item: T) => string): T[] {
+export function appendUnique<T>(
+  current: T[],
+  incoming: T[],
+  key: (item: T) => string
+): T[] {
   const seen = new Set(current.map(key));
   return [
     ...current,
@@ -22,7 +26,11 @@ export function appendUnique<T>(current: T[], incoming: T[], key: (item: T) => s
  * Newest page first, then the appended older pages. If a poll pulls an older
  * item into the first page, it is shown once, in its newer position.
  */
-export function mergeVisible<T>(firstPage: T[], older: T[], key: (item: T) => string): T[] {
+export function mergeVisible<T>(
+  firstPage: T[],
+  older: T[],
+  key: (item: T) => string
+): T[] {
   const seen = new Set(firstPage.map(key));
   return [
     ...firstPage,

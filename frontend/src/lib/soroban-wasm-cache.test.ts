@@ -11,6 +11,7 @@ import { rpc } from "@stellar/stellar-sdk";
 
 vi.mock("./indexed-db", () => ({
   isIndexerConfigured: vi.fn(() => false),
+  getIndexedContract: vi.fn().mockResolvedValue(null),
   getIndexedEvents: vi.fn(),
   getIndexedInvocations: vi.fn(),
   getIndexedStorageEntries: vi.fn(),
@@ -79,9 +80,10 @@ describe("getContractWasmInfo WASM ABI cache (#33)", () => {
     vi.spyOn(rpc.Server.prototype, "getContractData").mockResolvedValue(
       makeInstanceData() as never
     );
-    vi.spyOn(rpc.Server.prototype, "getContractWasmByContractId").mockResolvedValue(
-      Buffer.alloc(100) as never
-    );
+    vi.spyOn(
+      rpc.Server.prototype,
+      "getContractWasmByContractId"
+    ).mockResolvedValue(Buffer.alloc(100) as never);
 
     const first = await getContractWasmInfo("contract-id");
     const second = await getContractWasmInfo("contract-id");

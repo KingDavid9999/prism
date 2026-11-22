@@ -1,5 +1,10 @@
 /** The four simple key kinds offered as presets in the lookup UI. */
-export const SIMPLE_STORAGE_KEY_KINDS = ["symbol", "string", "u32", "address"] as const;
+export const SIMPLE_STORAGE_KEY_KINDS = [
+  "symbol",
+  "string",
+  "u32",
+  "address",
+] as const;
 export type SimpleStorageKeyKind = (typeof SIMPLE_STORAGE_KEY_KINDS)[number];
 
 /**
@@ -12,13 +17,21 @@ export type SimpleStorageKeyKind = (typeof SIMPLE_STORAGE_KEY_KINDS)[number];
  */
 const STRKEY_RE = /^[GC][A-Z2-7]{55}$/;
 
-export function validateStorageKeyValue(value: string, type: string): string | null {
+export function validateStorageKeyValue(
+  value: string,
+  type: string
+): string | null {
   if (!value.trim()) return null;
 
   switch (type.trim().toLowerCase()) {
     case "u32": {
       const num = Number(value);
-      if (!/^\d+$/.test(value.trim()) || !Number.isInteger(num) || num < 0 || num > 4294967295) {
+      if (
+        !/^\d+$/.test(value.trim()) ||
+        !Number.isInteger(num) ||
+        num < 0 ||
+        num > 4294967295
+      ) {
         return "Must be a valid u32 (0 to 4294967295)";
       }
       return null;

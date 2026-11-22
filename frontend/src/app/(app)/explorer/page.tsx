@@ -47,11 +47,20 @@ export default async function Home() {
           </span>
         </h2>
         {loadFailed ? (
-          <div role="alert" className="border border-prism-border rounded-lg p-4 text-sm">
-            <p className="font-medium mb-1">Couldn&apos;t reach the Stellar network</p>
+          <div
+            role="alert"
+            className="border border-prism-border rounded-lg p-4 text-sm"
+          >
+            <p className="font-medium mb-1">
+              Couldn&apos;t reach the Stellar network
+            </p>
             <p className="text-prism-muted">
-              Horizon didn&apos;t answer, so the latest ledger and transactions aren&apos;t available.{" "}
-              <Link href="/explorer" className="underline hover:text-prism-strong">
+              Horizon didn&apos;t answer, so the latest ledger and transactions
+              aren&apos;t available.{" "}
+              <Link
+                href="/explorer"
+                className="underline hover:text-prism-strong"
+              >
                 Try again
               </Link>
             </p>

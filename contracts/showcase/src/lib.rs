@@ -3,7 +3,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, Address, Bytes, BytesN,
-    Env, Map, String, Symbol, Vec,
+    ContractExecutable, Env, Map, String, Symbol, Vec,
 };
 
 const DAY_IN_LEDGERS: u32 = 17_280;
@@ -320,7 +320,7 @@ impl Showcase {
             .ok_or(Error::NotInitialized)?;
         admin.require_auth();
         env.deployer()
-            .update_current_contract_wasm(new_wasm_hash.clone());
+            .update_current_contract(ContractExecutable::Wasm(new_wasm_hash.clone()));
         Upgraded {
             admin,
             new_wasm_hash,

@@ -1,4 +1,12 @@
-import { Account, Address, BASE_FEE, Contract, Keypair, TransactionBuilder, rpc, xdr } from "@stellar/stellar-sdk";
+import {
+  Account,
+  BASE_FEE,
+  Contract,
+  Keypair,
+  TransactionBuilder,
+  rpc,
+  xdr,
+} from "@stellar/stellar-sdk";
 import type {
   ContractEvent,
   ContractInfo,
@@ -23,7 +31,10 @@ import {
 } from "./xdr";
 import { config } from "./config";
 // Re-exported for callers that already import key helpers from this module.
-export { SIMPLE_STORAGE_KEY_KINDS, type SimpleStorageKeyKind } from "./storage-key-validation";
+export {
+  SIMPLE_STORAGE_KEY_KINDS,
+  type SimpleStorageKeyKind,
+} from "./storage-key-validation";
 import type { HistoryPage, PageRequest } from "./history-cursor";
 import { classifyStorageEntry, withStorageState } from "./storage-state";
 import { EVENT_PAGE_SIZE, INVOCATION_PAGE_SIZE } from "./contract-lists";
@@ -75,10 +86,14 @@ export function extractSacAssetDetails(
       if (Number.isFinite(dec)) details.decimals = dec;
     }
   }
-  return details.name || details.symbol || details.decimals !== undefined ? details : undefined;
+  return details.name || details.symbol || details.decimals !== undefined
+    ? details
+    : undefined;
 }
 
-async function fetchContractInfo(contractId: string): Promise<ContractInfo | null> {
+async function fetchContractInfo(
+  contractId: string
+): Promise<ContractInfo | null> {
   let info: ContractInfo;
   try {
     const entry = await server().getContractData(
@@ -89,14 +104,17 @@ async function fetchContractInfo(contractId: string): Promise<ContractInfo | nul
     const instance = entry.val.contractData().val().instance();
     const executable = instance.executable();
     const isWasm = executable.switch().name === "contractExecutableWasm";
-    const instanceStorage: StorageEntry[] = (instance.storage() ?? []).map((e) => ({
-      key: scValToDisplay(e.key()),
-      value: scValToDisplay(e.val()),
-      valueType: scValTypeLabel(e.val()),
-      durability: "instance" as const,
-    }));
+    const instanceStorage: StorageEntry[] = (instance.storage() ?? []).map(
+      (e) => ({
+        key: scValToDisplay(e.key()),
+        value: scValToDisplay(e.val()),
+        durability: "instance" as const,
+      })
+    );
 
-    const assetDetails = isWasm ? undefined : extractSacAssetDetails(instance.storage() ?? []);
+    const assetDetails = isWasm
+      ? undefined
+      : extractSacAssetDetails(instance.storage() ?? []);
 
     info = {
       executable: isWasm ? "wasm" : "stellar_asset",
@@ -122,22 +140,28 @@ async function fetchContractInfo(contractId: string): Promise<ContractInfo | nul
  * Request-scoped, memoised contract lookup. Multiple callers within the same
  * server request share a single RPC getContractData call and DB query.
  */
-export const getContractInfo: (contractId: string) => Promise<ContractInfo | null> =
-  cache(fetchContractInfo);
+export const getContractInfo: (
+  contractId: string
+) => Promise<ContractInfo | null> = cache(fetchContractInfo);
 
-export type StorageKeyKind = "symbol" | "string" | "u32" | "address";
+/**
+ * A storage key's type. Any Soroban spec type string is accepted — including
+ * contract-defined unions/enums such as `DataKey` and compound types such as
+ * `Vec<Symbol>` — so a key can be written exactly as the contract declares it.
+ */
+export type StorageKeyKind = string;
 
-export function parseStorageKeyInput(raw: string, kind: StorageKeyKind): xdr.ScVal {
-  switch (kind) {
-    case "symbol":
-      return xdr.ScVal.scvSymbol(raw);
-    case "string":
-      return xdr.ScVal.scvString(raw);
-    case "u32":
-      return xdr.ScVal.scvU32(Number(raw));
-    case "address":
-      return new Address(raw).toScVal();
-  }
+/**
+ * Build a storage key ScVal with the same coercion the invoke tool uses, so
+ * contract-defined and compound key types work here too. The four simple
+ * kinds remain as the UI's presets.
+ */
+export function parseStorageKeyInput(
+  raw: string,
+  specType: StorageKeyKind,
+  types: ParsedTypeDef[] = []
+): xdr.ScVal {
+  return coerceArgInput(raw, specType, types);
 }
 
 /** Latest ledger sequence, or null when RPC can't tell us (labels stay neutral then). */
@@ -160,7 +184,9 @@ export async function lookupStorageEntry(
       server().getContractData(
         contractId,
         key,
-        durability === "temporary" ? rpc.Durability.Temporary : rpc.Durability.Persistent
+        durability === "temporary"
+          ? rpc.Durability.Temporary
+          : rpc.Durability.Persistent
       ),
       latestLedgerSeq(),
     ]);
@@ -201,7 +227,9 @@ export async function lookupStorageEntry(
   }
 }
 
-export async function getFullStorageEntries(contractId: string): Promise<StorageEntry[]> {
+export async function getFullStorageEntries(
+  contractId: string
+): Promise<StorageEntry[]> {
   if (!isIndexerConfigured()) return [];
   const [indexed, latest] = await Promise.all([
     getIndexedStorageEntries(contractId),
@@ -240,7 +268,10 @@ export async function getContractWasmInfo(
   try {
     // Read the WASM hash from the contract instance entry first so we can
     // serve a cache hit without downloading the bytecode at all.
-    const info = providedInfo === undefined ? await getContractInfo(contractId) : providedInfo;
+    const info =
+      providedInfo === undefined
+        ? await getContractInfo(contractId)
+        : providedInfo;
     if (info?.wasmHash && wasmAbiCache.has(info.wasmHash)) {
       return wasmAbiCache.get(info.wasmHash)!;
     }
@@ -279,7 +310,10 @@ export function _clearWasmAbiCacheForTesting(): void {
  * (DATABASE_URL set); otherwise falls back to the RPC node's retention
  * window (public nodes typically retain ~24h) — not full history.
  */
-export async function getContractEvents(contractId: string, limit = EVENT_PAGE_SIZE): Promise<ContractEvent[]> {
+export async function getContractEvents(
+  contractId: string,
+  limit = EVENT_PAGE_SIZE
+): Promise<ContractEvent[]> {
   return (await getContractEventsPage(contractId, { limit })).items;
 }
 
@@ -319,7 +353,10 @@ export async function getContractEventsPage(
     };
   }
   if (request.before) return { items: [], nextCursor: null, error: null };
-  return { ...(await getContractEventsFromRpc(contractId, request.limit)), nextCursor: null };
+  return {
+    ...(await getContractEventsFromRpc(contractId, request.limit)),
+    nextCursor: null,
+  };
 }
 
 interface RpcEventsResult {
@@ -327,7 +364,10 @@ interface RpcEventsResult {
   error: string | null;
 }
 
-async function getContractEventsFromRpc(contractId: string, limit: number): Promise<RpcEventsResult> {
+async function getContractEventsFromRpc(
+  contractId: string,
+  limit: number
+): Promise<RpcEventsResult> {
   try {
     const s = server();
     const latest = await s.getLatestLedger();
@@ -387,12 +427,21 @@ export async function getInvocationHistoryPage(
     };
   }
   if (request.before) return { items: [], nextCursor: null };
-  return { items: await getInvocationHistoryFromRpc(contractId, request.limit), nextCursor: null };
+  return {
+    items: await getInvocationHistoryFromRpc(contractId, request.limit),
+    nextCursor: null,
+  };
 }
 
-async function getInvocationHistoryFromRpc(contractId: string, limit: number): Promise<InvocationHistoryItem[]> {
+async function getInvocationHistoryFromRpc(
+  contractId: string,
+  limit: number
+): Promise<InvocationHistoryItem[]> {
   const { items: events } = await getContractEventsFromRpc(contractId, 200);
-  const txHashes = Array.from(new Set(events.map((e) => e.txHash))).slice(0, limit);
+  const txHashes = Array.from(new Set(events.map((e) => e.txHash))).slice(
+    0,
+    limit
+  );
 
   const CONCURRENCY = 4;
   const items: (InvocationHistoryItem | null)[] = [];
@@ -402,7 +451,8 @@ async function getInvocationHistoryFromRpc(contractId: string, limit: number): P
       batch.map(async (txHash): Promise<InvocationHistoryItem | null> => {
         try {
           const res = await server().getTransaction(txHash);
-          if (res.status === rpc.Api.GetTransactionStatus.NOT_FOUND) return null;
+          if (res.status === rpc.Api.GetTransactionStatus.NOT_FOUND)
+            return null;
           const invocation = decodeInvocation(res.envelopeXdr);
           return {
             txHash,
@@ -425,7 +475,9 @@ async function getInvocationHistoryFromRpc(contractId: string, limit: number): P
     .sort((a, b) => b.ledger - a.ledger);
 }
 
-export async function getInvocationReturnValue(txHash: string): Promise<string | null> {
+export async function getInvocationReturnValue(
+  txHash: string
+): Promise<string | null> {
   const indexed = await getIndexedInvocationReturnValue(txHash);
   if (indexed !== null) return indexed;
 
@@ -446,7 +498,9 @@ export interface NetworkActivityItem {
   timestamp: string;
 }
 
-export async function getRecentNetworkActivity(limit = 5): Promise<NetworkActivityItem[]> {
+export async function getRecentNetworkActivity(
+  limit = 5
+): Promise<NetworkActivityItem[]> {
   try {
     const s = server();
     const latest = await s.getLatestLedger();
@@ -491,12 +545,14 @@ export async function simulateInvocation(
   functionName: string,
   args: xdr.ScVal[]
 ): Promise<SimulationResult> {
-
   try {
     const network = config.networkPassphrase;
     const source = new Account(Keypair.random().publicKey(), "0");
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(source, { fee: BASE_FEE, networkPassphrase: network })
+    const tx = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: network,
+    })
       .addOperation(contract.call(functionName, ...args))
       .setTimeout(30)
       .build();
@@ -517,14 +573,21 @@ export async function simulateInvocation(
     const resources = sim.transactionData.build().resources();
     return {
       success: true,
-      returnValue: sim.result?.retval ? scValToDisplay(sim.result.retval) : undefined,
+      returnValue: sim.result?.retval
+        ? scValToDisplay(sim.result.retval)
+        : undefined,
       resourceFeeStroops: String(sim.minResourceFee),
       instructions: resources.instructions(),
-      auth: sim.result?.auth ? describeAuthorizations(sim.result.auth) : undefined,
+      auth: sim.result?.auth
+        ? describeAuthorizations(sim.result.auth)
+        : undefined,
       events: decodeSimulationEvents(sim.events, contractId),
       footprint: decodeSimulationFootprint(resources),
     };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }

@@ -6,7 +6,12 @@
 
 export type StellarNetwork = "testnet" | "mainnet" | "futurenet" | "local";
 
-export const NETWORKS: StellarNetwork[] = ["testnet", "mainnet", "futurenet", "local"];
+export const NETWORKS: StellarNetwork[] = [
+  "testnet",
+  "mainnet",
+  "futurenet",
+  "local",
+];
 
 type PublicNetwork = Exclude<StellarNetwork, "local">;
 
@@ -18,7 +23,10 @@ const PUBLIC_PASSPHRASES: Record<PublicNetwork, string> = {
 };
 
 /** Public endpoints for each public network, used when an explicit URL isn't configured. */
-const DEFAULT_ENDPOINTS: Record<PublicNetwork, { horizon: string; rpc: string }> = {
+const DEFAULT_ENDPOINTS: Record<
+  PublicNetwork,
+  { horizon: string; rpc: string }
+> = {
   testnet: {
     horizon: "https://horizon-testnet.stellar.org",
     rpc: "https://soroban-testnet.stellar.org",
@@ -50,7 +58,8 @@ export interface PrismConfig {
  */
 export function parseNetwork(raw: string | undefined): StellarNetwork {
   const value = raw?.trim().toLowerCase();
-  if (value === "mainnet" || value === "public" || value === "pubnet") return "mainnet";
+  if (value === "mainnet" || value === "public" || value === "pubnet")
+    return "mainnet";
   if (value === "futurenet") return "futurenet";
   if (value === "local" || value === "custom") return "local";
   return "testnet";
@@ -151,7 +160,10 @@ export function configWarnings(cfg: PrismConfig): string[] {
  * destructive: contract simulation is signed with the configured passphrase
  * while the data on screen comes from whatever the node actually serves.
  */
-export function passphraseWarning(cfg: PrismConfig, reported: string): string | null {
+export function passphraseWarning(
+  cfg: PrismConfig,
+  reported: string
+): string | null {
   if (reported === cfg.networkPassphrase) return null;
   return (
     `Soroban RPC (${cfg.sorobanRpcUrl}) reports network passphrase "${reported}", ` +
@@ -178,7 +190,8 @@ export function getRpcPassphrase(rpcUrl: string): Promise<string> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = (await res.json()) as { result?: { passphrase?: unknown } };
     const passphrase = body.result?.passphrase;
-    if (typeof passphrase !== "string") throw new Error("getNetwork returned no passphrase");
+    if (typeof passphrase !== "string")
+      throw new Error("getNetwork returned no passphrase");
     return passphrase;
   });
 

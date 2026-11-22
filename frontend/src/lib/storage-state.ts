@@ -11,7 +11,8 @@ export function classifyStorageEntry(
   liveUntilLedgerSeq: number | null | undefined,
   latestLedgerSeq: number
 ): StorageEntryState {
-  if (liveUntilLedgerSeq == null || latestLedgerSeq < liveUntilLedgerSeq) return "live";
+  if (liveUntilLedgerSeq == null || latestLedgerSeq < liveUntilLedgerSeq)
+    return "live";
   return durability === "temporary" ? "expired" : "archived";
 }
 
@@ -28,9 +29,16 @@ export function storageStateLabel(state: StorageEntryState): string {
 }
 
 /** Attach the computed state to a storage entry, leaving unknown TTLs as live. */
-export function withStorageState(entry: StorageEntry, latestLedgerSeq: number): StorageEntry {
+export function withStorageState(
+  entry: StorageEntry,
+  latestLedgerSeq: number
+): StorageEntry {
   return {
     ...entry,
-    state: classifyStorageEntry(entry.durability, entry.liveUntilLedgerSeq, latestLedgerSeq),
+    state: classifyStorageEntry(
+      entry.durability,
+      entry.liveUntilLedgerSeq,
+      latestLedgerSeq
+    ),
   };
 }

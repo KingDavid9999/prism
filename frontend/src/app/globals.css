@@ -44,6 +44,8 @@ body {
   font-family: "Inter", sans-serif;
 }
 
-code, pre, .mono {
+code,
+pre,
+.mono {
   font-family: "JetBrains Mono", monospace;
 }

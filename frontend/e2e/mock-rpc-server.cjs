@@ -21,21 +21,25 @@ const server = http.createServer((req, res) => {
         id = null;
       }
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        jsonrpc: "2.0",
-        id,
-        error: { code: -32000, message: "No fixture data" },
-      }));
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32000, message: "No fixture data" },
+        })
+      );
     });
     return;
   }
 
   res.writeHead(404, { "content-type": "application/json" });
-  res.end(JSON.stringify({
-    title: "Resource Missing",
-    status: 404,
-    detail: "No fixture data",
-  }));
+  res.end(
+    JSON.stringify({
+      title: "Resource Missing",
+      status: 404,
+      detail: "No fixture data",
+    })
+  );
 });
 
 server.listen(8765, "127.0.0.1");

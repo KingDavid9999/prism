@@ -91,7 +91,8 @@ describe("startVisibilityPolling", () => {
     const doc = {
       hidden: true,
       visibilityState: "hidden",
-      addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
+      addEventListener: (_type: string, listener: () => void) =>
+        listeners.push(listener),
       removeEventListener: () => {},
     };
     globals.document = doc;

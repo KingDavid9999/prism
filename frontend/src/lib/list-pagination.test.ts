@@ -3,7 +3,8 @@ import { appendUnique, mergeVisible } from "./list-pagination";
 
 const byHash = (item: { txHash: string }) => item.txHash;
 const tx = (n: number) => ({ txHash: `tx-${n}` });
-const page = (from: number, count: number) => Array.from({ length: count }, (_, i) => tx(from + i));
+const page = (from: number, count: number) =>
+  Array.from({ length: count }, (_, i) => tx(from + i));
 
 describe("appendUnique", () => {
   it("keeps every item across two older pages", () => {
@@ -22,7 +23,11 @@ describe("appendUnique", () => {
 describe("mergeVisible", () => {
   it("shows all 60 indexed invocations after two older-page clicks", () => {
     const firstPage = page(1, 20);
-    const older = appendUnique(appendUnique([], page(21, 20), byHash), page(41, 20), byHash);
+    const older = appendUnique(
+      appendUnique([], page(21, 20), byHash),
+      page(41, 20),
+      byHash
+    );
     expect(mergeVisible(firstPage, older, byHash)).toHaveLength(60);
   });
 
@@ -31,7 +36,14 @@ describe("mergeVisible", () => {
     const refreshedFirstPage = page(18, 5); // now includes tx-21..tx-22
     const merged = mergeVisible(refreshedFirstPage, older, byHash);
     expect(merged.map(byHash)).toEqual([
-      "tx-18", "tx-19", "tx-20", "tx-21", "tx-22", "tx-23", "tx-24", "tx-25",
+      "tx-18",
+      "tx-19",
+      "tx-20",
+      "tx-21",
+      "tx-22",
+      "tx-23",
+      "tx-24",
+      "tx-25",
     ]);
     expect(new Set(merged).size).toBe(merged.length);
   });

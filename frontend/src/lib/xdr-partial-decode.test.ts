@@ -30,16 +30,26 @@ describe("decodeAnyXdr partial decodes", () => {
 
     expect(result?.type).toBe("LedgerEntry");
     expect(result?.partial).toBe(false);
-    expect(result?.fields.map((f) => f.label)).toEqual(["Entry type", "Last modified ledger"]);
+    expect(result?.fields.map((f) => f.label)).toEqual([
+      "Entry type",
+      "Last modified ledger",
+    ]);
   });
 
   it("flags a recognized type as partial when a field accessor fails", () => {
     const encoded = ledgerEntryXdr();
-    vi.spyOn(xdr.LedgerEntry.prototype, "lastModifiedLedgerSeq").mockImplementation(() => {
+    vi.spyOn(
+      xdr.LedgerEntry.prototype,
+      "lastModifiedLedgerSeq"
+    ).mockImplementation(() => {
       throw new Error("forced field failure");
     });
 
     // The type still round-trips, so it is identified; only its contents are lost.
-    expect(decodeAnyXdr(encoded)).toEqual({ type: "LedgerEntry", fields: [], partial: true });
+    expect(decodeAnyXdr(encoded)).toEqual({
+      type: "LedgerEntry",
+      fields: [],
+      partial: true,
+    });
   });
 });

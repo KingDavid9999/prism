@@ -49,9 +49,10 @@ describe("getContractInfo request cache", () => {
     const getContractData = vi
       .spyOn(rpc.Server.prototype, "getContractData")
       .mockResolvedValue(instanceData());
-    vi.spyOn(rpc.Server.prototype, "getContractWasmByContractId").mockResolvedValue(
-      Buffer.alloc(64) as never
-    );
+    vi.spyOn(
+      rpc.Server.prototype,
+      "getContractWasmByContractId"
+    ).mockResolvedValue(Buffer.alloc(64) as never);
 
     await runWithCacheScope(async () => {
       // generateMetadata()
@@ -69,9 +70,10 @@ describe("getContractInfo request cache", () => {
     const getContractData = vi
       .spyOn(rpc.Server.prototype, "getContractData")
       .mockResolvedValue(instanceData());
-    vi.spyOn(rpc.Server.prototype, "getContractWasmByContractId").mockResolvedValue(
-      Buffer.alloc(64) as never
-    );
+    vi.spyOn(
+      rpc.Server.prototype,
+      "getContractWasmByContractId"
+    ).mockResolvedValue(Buffer.alloc(64) as never);
 
     await runWithCacheScope(async () => {
       await Promise.all([

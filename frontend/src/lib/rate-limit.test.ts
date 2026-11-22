@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { rateLimit, getClientKey, rateLimitRequest, type RateLimitResult } from "./rate-limit";
+import { rateLimit, getClientKey, rateLimitRequest } from "./rate-limit";
 
 describe("rateLimit", () => {
   beforeEach(() => {
@@ -147,7 +147,8 @@ describe("rateLimitRequest (#27)", () => {
     vi.useFakeTimers();
     const req = new Request("http://localhost/");
     // Exhaust the bucket (scope must be unique to this test)
-    for (let i = 0; i < 2; i++) rateLimitRequest(req, { scope: "test-http-429", max: 2 });
+    for (let i = 0; i < 2; i++)
+      rateLimitRequest(req, { scope: "test-http-429", max: 2 });
     const result = rateLimitRequest(req, { scope: "test-http-429", max: 2 });
     expect(result?.status).toBe(429);
   });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 
 function mockFetchOnce(body: unknown, ok = true) {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -88,11 +88,15 @@ describe("getTransaction", () => {
   it("throws on a non-ok response instead of returning partial data", async () => {
     mockFetchOnce({}, false);
     const { getTransaction } = await import("./horizon");
-    await expect(getTransaction("deadbeef")).rejects.toThrow(/Horizon error 500/);
+    await expect(getTransaction("deadbeef")).rejects.toThrow(
+      /Horizon error 500/
+    );
   });
 
   it("distinguishes a missing transaction from an unreachable Horizon", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
     vi.stubGlobal("fetch", fetchMock);
     const { getTransaction, isNotFound } = await import("./horizon");
 
@@ -137,7 +141,9 @@ describe("getTransaction", () => {
   it("reports an absent memo as undefined, not null", async () => {
     mockFetchOnce(transaction);
     const { getTransaction } = await import("./horizon");
-    expect(await getTransaction("deadbeef").then((t) => t.memo)).toBeUndefined();
+    expect(
+      await getTransaction("deadbeef").then((t) => t.memo)
+    ).toBeUndefined();
   });
 
   it("keeps a memo that is present", async () => {
@@ -154,25 +160,36 @@ describe("Horizon failure detail", () => {
 
   it("carries and logs the problem detail from a 400", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      status: 400,
-      json: async () => ({ title: "Bad Request", detail: "The cursor is malformed." }),
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          title: "Bad Request",
+          detail: "The cursor is malformed.",
+        }),
+      })
+    );
     const { getLatestLedger } = await import("./horizon");
 
     const err = await getLatestLedger().catch((e) => e);
     expect(err.status).toBe(400);
     expect(err.detail).toBe("The cursor is malformed.");
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("The cursor is malformed."));
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("The cursor is malformed.")
+    );
   });
 
   it("falls back to the title when there is no detail", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      status: 503,
-      json: async () => ({ title: "Service Unavailable" }),
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({ title: "Service Unavailable" }),
+      })
+    );
     const { getLatestLedger } = await import("./horizon");
 
     const err = await getLatestLedger().catch((e) => e);
@@ -181,22 +198,28 @@ describe("Horizon failure detail", () => {
 
   it("does not log a 404 or a body that is not JSON", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: async () => ({ title: "Not Found", detail: "Not Found" }),
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ title: "Not Found", detail: "Not Found" }),
+      })
+    );
     const { getTransaction } = await import("./horizon");
     await getTransaction("deadbeef").catch(() => {});
     expect(errorSpy).not.toHaveBeenCalled();
 
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      status: 502,
-      json: async () => {
-        throw new SyntaxError("Unexpected token <");
-      },
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new SyntaxError("Unexpected token <");
+        },
+      })
+    );
     const err = await getTransaction("deadbeef").catch((e) => e);
     expect(err.detail).toBeUndefined();
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("no detail"));
@@ -210,15 +233,27 @@ describe("getAccount", () => {
     subentry_count: 0,
     last_modified_ledger: 4671563,
     thresholds: { low_threshold: 0, med_threshold: 0, high_threshold: 0 },
-    flags: { auth_required: false, auth_revocable: false, auth_immutable: false, auth_clawback_enabled: false },
+    flags: {
+      auth_required: false,
+      auth_revocable: false,
+      auth_immutable: false,
+      auth_clawback_enabled: false,
+    },
     balances: [],
   };
 
   it("keeps the pool ID on liquidity pool share balances, which have no asset code", async () => {
-    const poolId = "dd7b1ab831c273310ddbec6f97870aa83c2fbd78ce22aded37ecbf4f3380fac7";
+    const poolId =
+      "dd7b1ab831c273310ddbec6f97870aa83c2fbd78ce22aded37ecbf4f3380fac7";
     mockFetchOnce({
       ...account,
-      balances: [{ asset_type: "liquidity_pool_shares", liquidity_pool_id: poolId, balance: "5.0000000" }],
+      balances: [
+        {
+          asset_type: "liquidity_pool_shares",
+          liquidity_pool_id: poolId,
+          balance: "5.0000000",
+        },
+      ],
     });
     const { getAccount } = await import("./horizon");
     const [balance] = (await getAccount("GCLWKHHH")).balances;

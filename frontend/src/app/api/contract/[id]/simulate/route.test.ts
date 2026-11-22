@@ -9,7 +9,6 @@
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { NextResponse } from "next/server";
 
 vi.mock("@/lib/soroban", () => ({
   simulateInvocation: vi.fn(),
@@ -52,9 +51,16 @@ describe("POST /api/contract/[id]/simulate — type definitions (#30)", () => {
 
   it("uses caller-supplied types when they are present", async () => {
     const callerTypes = [
-      { kind: "struct" as const, name: "MyStruct", fields: [{ name: "amount", type: "u64" }] },
+      {
+        kind: "struct" as const,
+        name: "MyStruct",
+        fields: [{ name: "amount", type: "u64" }],
+      },
     ];
-    vi.mocked(simulateInvocation).mockResolvedValue({ success: true, returnValue: "ok" });
+    vi.mocked(simulateInvocation).mockResolvedValue({
+      success: true,
+      returnValue: "ok",
+    });
 
     await POST(
       makeRequest({
@@ -72,7 +78,11 @@ describe("POST /api/contract/[id]/simulate — type definitions (#30)", () => {
 
   it("fetches types from the WASM when no types are supplied by the caller", async () => {
     const wasmTypes = [
-      { kind: "enum" as const, name: "Status", cases: [{ name: "Active", value: 1 }] },
+      {
+        kind: "enum" as const,
+        name: "Status",
+        cases: [{ name: "Active", value: 1 }],
+      },
     ];
     vi.mocked(getContractWasmInfo).mockResolvedValue({
       size: 100,
@@ -83,7 +93,10 @@ describe("POST /api/contract/[id]/simulate — type definitions (#30)", () => {
     vi.mocked(simulateInvocation).mockResolvedValue({ success: true });
 
     await POST(
-      makeRequest({ functionName: "check", args: [{ value: "1", type: "u32" }] }),
+      makeRequest({
+        functionName: "check",
+        args: [{ value: "1", type: "u32" }],
+      }),
       params
     );
 

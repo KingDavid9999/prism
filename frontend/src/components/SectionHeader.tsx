@@ -7,7 +7,12 @@ interface Props {
 }
 
 /** Section heading with its item count, noting when the list is capped at its page size. */
-export default function SectionHeader({ title, count, cap, live = false }: Props) {
+export default function SectionHeader({
+  title,
+  count,
+  cap,
+  live = false,
+}: Props) {
   const capped = cap !== undefined && count >= cap;
   return (
     <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">

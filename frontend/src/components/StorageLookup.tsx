@@ -3,8 +3,11 @@
 import { useState, useTransition } from "react";
 import { lookupStorageKeyAction } from "@/lib/actions";
 import { storageStateLabel } from "@/lib/storage-state";
-import type { StorageEntry } from "@/types";
-import type { StorageKeyKind } from "@/lib/soroban";
+import {
+  SIMPLE_STORAGE_KEY_KINDS,
+  validateStorageKeyValue,
+} from "@/lib/storage-key-validation";
+import type { ContractTypeDef, StorageEntry } from "@/types";
 
 interface Props {
   contractId: string;
@@ -12,28 +15,38 @@ interface Props {
   types?: ContractTypeDef[];
 }
 
-interface KeyCase { name: string; types: string[] }
+interface KeyCase {
+  name: string;
+  types: string[];
+}
 
 /** Unions and enums can both be used as storage keys; normalise their cases. */
 function casesFor(def: ContractTypeDef | undefined): KeyCase[] {
   if (!def) return [];
   if (def.kind === "union") return def.cases;
-  if (def.kind === "enum") return def.cases.map((c) => ({ name: c.name, types: [] }));
+  if (def.kind === "enum")
+    return def.cases.map((c) => ({ name: c.name, types: [] }));
   return [];
 }
 
 export default function StorageLookup({ contractId, types = [] }: Props) {
   const [kind, setKind] = useState<string>("symbol");
-  const [durability, setDurability] = useState<"persistent" | "temporary">("persistent");
+  const [durability, setDurability] = useState<"persistent" | "temporary">(
+    "persistent"
+  );
   const [key, setKey] = useState("");
   const [selectedCase, setSelectedCase] = useState("");
   const [caseValues, setCaseValues] = useState<string[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [result, setResult] = useState<StorageEntry | { error: string } | null>(null);
+  const [result, setResult] = useState<StorageEntry | { error: string } | null>(
+    null
+  );
   const [pending, startTransition] = useTransition();
 
   // Only unions and enums make sense as selectable key variants.
-  const keyTypeDefs = types.filter((t) => t.kind === "union" || t.kind === "enum");
+  const keyTypeDefs = types.filter(
+    (t) => t.kind === "union" || t.kind === "enum"
+  );
   const activeDef = keyTypeDefs.find((t) => t.name === kind);
   const activeCases = casesFor(activeDef);
   const activeCase = activeCases.find((c) => c.name === selectedCase);
@@ -67,7 +80,9 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
       next[index] = value;
       return next;
     });
-    setValidationError(validateStorageKeyValue(value, activeCase?.types[index] ?? ""));
+    setValidationError(
+      validateStorageKeyValue(value, activeCase?.types[index] ?? "")
+    );
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -81,7 +96,9 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
     if (activeDef) {
       if (activeCase && activeCase.types.length > 0) {
         rawKey = JSON.stringify({
-          [activeCase.name]: activeCase.types.map((_, i) => (caseValues[i] ?? "").trim()),
+          [activeCase.name]: activeCase.types.map((_, i) =>
+            (caseValues[i] ?? "").trim()
+          ),
         });
       } else {
         rawKey = selectedCase || activeCases[0]?.name || "";
@@ -90,7 +107,13 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
     if (!rawKey.trim()) return;
 
     startTransition(async () => {
-      const res = await lookupStorageKeyAction(contractId, kind, rawKey, durability, types);
+      const res = await lookupStorageKeyAction(
+        contractId,
+        kind,
+        rawKey,
+        durability,
+        types
+      );
       setResult(res);
     });
   }
@@ -98,13 +121,17 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
   return (
     <div className="rounded-xl border border-prism-border bg-prism-surface p-4 mt-4">
       <p className="text-sm text-prism-muted mb-3">
-        Look up a specific persistent/temporary storage entry by key. Soroban RPC has no way to list all
-        storage keys for a contract — you need to already know the key you&apos;re after.
+        Look up a specific persistent/temporary storage entry by key. Soroban
+        RPC has no way to list all storage keys for a contract — you need to
+        already know the key you&apos;re after.
       </p>
       <form onSubmit={handleSubmit} className="space-y-2">
         <div className="flex flex-wrap gap-2 items-start">
           <div className="flex flex-col gap-1">
-            <label htmlFor="kind-select" className="text-xs font-mono text-prism-muted">
+            <label
+              htmlFor="kind-select"
+              className="text-xs font-mono text-prism-muted"
+            >
               Key type
             </label>
             <select
@@ -115,26 +142,35 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
             >
               <optgroup label="Simple">
                 {SIMPLE_STORAGE_KEY_KINDS.map((k) => (
-                  <option key={k} value={k}>{k}</option>
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
                 ))}
               </optgroup>
               {keyTypeDefs.length > 0 && (
                 <optgroup label="Contract types">
                   {keyTypeDefs.map((t) => (
-                    <option key={t.name} value={t.name}>{t.name}</option>
+                    <option key={t.name} value={t.name}>
+                      {t.name}
+                    </option>
                   ))}
                 </optgroup>
               )}
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="durability-select" className="text-xs font-mono text-prism-muted">
+            <label
+              htmlFor="durability-select"
+              className="text-xs font-mono text-prism-muted"
+            >
               Durability
             </label>
             <select
               id="durability-select"
               value={durability}
-              onChange={(e) => setDurability(e.target.value as "persistent" | "temporary")}
+              onChange={(e) =>
+                setDurability(e.target.value as "persistent" | "temporary")
+              }
               className="bg-prism-bg border border-prism-border rounded-lg px-2 py-2 text-xs font-mono outline-none focus:border-prism-accent"
             >
               <option value="persistent">Persistent</option>
@@ -143,7 +179,10 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
           </div>
           {activeDef && (
             <div className="flex flex-col gap-1">
-              <label htmlFor="case-select" className="text-xs font-mono text-prism-muted">
+              <label
+                htmlFor="case-select"
+                className="text-xs font-mono text-prism-muted"
+              >
                 Variant
               </label>
               <select
@@ -153,7 +192,9 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
                 className="bg-prism-bg border border-prism-border rounded-lg px-2 py-2 text-xs font-mono outline-none focus:border-prism-accent"
               >
                 {activeCases.map((c) => (
-                  <option key={c.name} value={c.name}>{c.name}</option>
+                  <option key={c.name} value={c.name}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -162,8 +203,14 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
             activeCase && activeCase.types.length > 0 ? (
               <div className="flex flex-1 flex-wrap gap-2 items-start">
                 {activeCase.types.map((type, i) => (
-                  <div key={i} className="flex flex-1 min-w-[120px] flex-col gap-1">
-                    <label htmlFor={`case-value-${i}`} className="text-xs font-mono text-prism-muted">
+                  <div
+                    key={i}
+                    className="flex flex-1 min-w-[120px] flex-col gap-1"
+                  >
+                    <label
+                      htmlFor={`case-value-${i}`}
+                      className="text-xs font-mono text-prism-muted"
+                    >
                       {type}
                     </label>
                     <input
@@ -195,7 +242,9 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
             {pending ? "Looking up…" : "Look up"}
           </button>
         </div>
-        {validationError && <p className="text-xs text-prism-red">{validationError}</p>}
+        {validationError && (
+          <p className="text-xs text-prism-red">{validationError}</p>
+        )}
       </form>
       {result && (
         <div className="mt-3 text-xs font-mono" aria-live="polite">
@@ -217,8 +266,8 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
                     result.state === "expired"
                       ? "text-prism-red"
                       : result.state === "archived"
-                      ? "text-prism-accent"
-                      : undefined
+                        ? "text-prism-accent"
+                        : undefined
                   }
                 >
                   {storageStateLabel(result.state ?? "live")}
@@ -226,8 +275,8 @@ export default function StorageLookup({ contractId, types = [] }: Props) {
               </p>
               {result.liveUntilLedgerSeq !== undefined && (
                 <p>
-                  <span className="text-prism-muted">Live until ledger:</span>{" "}
-                  #{result.liveUntilLedgerSeq.toLocaleString()}
+                  <span className="text-prism-muted">Live until ledger:</span> #
+                  {result.liveUntilLedgerSeq.toLocaleString()}
                 </p>
               )}
             </div>

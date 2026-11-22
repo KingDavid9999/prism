@@ -9,12 +9,18 @@ const DEFAULT_IDLE_TIMEOUT_MS = 10_000;
 
 type EnvLike = Record<string, string | undefined>;
 
-function parsePositiveInt(name: string, raw: string | undefined, fallback: number): number {
+function parsePositiveInt(
+  name: string,
+  raw: string | undefined,
+  fallback: number
+): number {
   const value = raw?.trim();
   if (!value) return fallback;
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive integer, got ${JSON.stringify(raw)}`);
+    throw new Error(
+      `${name} must be a positive integer, got ${JSON.stringify(raw)}`
+    );
   }
   return parsed;
 }
@@ -29,14 +35,20 @@ function parseSsl(raw: string | undefined): PoolConfig["ssl"] {
   if (!value || value === "false") return undefined;
   if (value === "true") return true;
   if (value === "no-verify") return { rejectUnauthorized: false };
-  throw new Error(`DATABASE_SSL must be "true", "false" or "no-verify", got ${JSON.stringify(raw)}`);
+  throw new Error(
+    `DATABASE_SSL must be "true", "false" or "no-verify", got ${JSON.stringify(raw)}`
+  );
 }
 
 /** Build the pool's config from an environment, defaulting to pg's values. */
 export function poolConfigFromEnv(env: EnvLike): PoolConfig {
   return {
     connectionString: env.DATABASE_URL,
-    max: parsePositiveInt("DATABASE_POOL_MAX", env.DATABASE_POOL_MAX, DEFAULT_POOL_MAX),
+    max: parsePositiveInt(
+      "DATABASE_POOL_MAX",
+      env.DATABASE_POOL_MAX,
+      DEFAULT_POOL_MAX
+    ),
     idleTimeoutMillis: parsePositiveInt(
       "DATABASE_IDLE_TIMEOUT_MS",
       env.DATABASE_IDLE_TIMEOUT_MS,
@@ -49,6 +61,17 @@ export function poolConfigFromEnv(env: EnvLike): PoolConfig {
 /** Whether a Postgres-backed indexer is configured for this deployment (see indexer/). */
 export function isIndexerConfigured(): boolean {
   return Boolean(process.env.DATABASE_URL);
+}
+
+/** Test whether the configured Postgres database is reachable and accepting queries. */
+export async function checkDatabaseHealth(): Promise<boolean> {
+  if (!isIndexerConfigured()) return true;
+  try {
+    const { rows } = await getPool().query("SELECT 1 as healthy");
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 function getPool(): Pool {
@@ -67,7 +90,9 @@ export interface IndexedInvocation {
 }
 
 /** The stored return value for a transaction, when the indexer has one. */
-export async function getIndexedInvocationReturnValue(txHash: string): Promise<string | null> {
+export async function getIndexedInvocationReturnValue(
+  txHash: string
+): Promise<string | null> {
   if (!isIndexerConfigured()) return null;
   const { rows } = await getPool().query(
     `SELECT "returnValue" FROM "Invocation" WHERE "txHash" = $1`,
@@ -117,7 +142,9 @@ export interface IndexedContract {
   deploymentLedger: number;
 }
 
-export async function getIndexedContract(contractId: string): Promise<IndexedContract | null> {
+export async function getIndexedContract(
+  contractId: string
+): Promise<IndexedContract | null> {
   if (!isIndexerConfigured()) return null;
   const { rows } = await getPool().query(
     `SELECT creator, "deploymentLedger" FROM "Contract" WHERE "contractId" = $1`,
@@ -135,7 +162,9 @@ export interface IndexedContractByCreator {
   deploymentLedger: number;
 }
 
-export async function getIndexedContractsByCreator(creator: string): Promise<IndexedContractByCreator[]> {
+export async function getIndexedContractsByCreator(
+  creator: string
+): Promise<IndexedContractByCreator[]> {
   if (!isIndexerConfigured()) return [];
   const { rows } = await getPool().query(
     `SELECT "contractId", "deploymentLedger" FROM "Contract" WHERE creator = $1 ORDER BY "deploymentLedger" DESC`,
@@ -204,7 +233,9 @@ export interface IndexedStorageEntry {
  * access can't provide at all. Only reflects activity since the indexer
  * started (forward-only, no historical backfill).
  */
-export async function getIndexedStorageEntries(contractId: string): Promise<IndexedStorageEntry[]> {
+export async function getIndexedStorageEntries(
+  contractId: string
+): Promise<IndexedStorageEntry[]> {
   if (!isIndexerConfigured()) return [];
   const { rows } = await getPool().query(
     `SELECT latest.*, ttl."liveUntilLedger" FROM (

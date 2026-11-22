@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
-import { getContractInfo, getContractWasmInfo, getContractEventsPage, getInvocationHistoryPage, getFullStorageEntries } from "@/lib/soroban";
-import { getIndexedGaps, getIndexerCursor, isIndexerConfigured } from "@/lib/indexed-db";
+import {
+  getContractInfo,
+  getContractWasmInfo,
+  getContractEventsPage,
+  getInvocationHistoryPage,
+  getFullStorageEntries,
+} from "@/lib/soroban";
+import {
+  getIndexedGaps,
+  getIndexerCursor,
+  isIndexerConfigured,
+} from "@/lib/indexed-db";
 import ContractOverview from "@/components/ContractOverview";
 import ContractStorageView from "@/components/ContractStorageView";
 import LiveInvocationHistory from "@/components/LiveInvocationHistory";
@@ -14,7 +24,9 @@ import { EVENT_PAGE_SIZE, INVOCATION_PAGE_SIZE } from "@/lib/contract-lists";
 
 export const dynamic = "force-dynamic";
 
-interface Props { params: { id: string } }
+interface Props {
+  params: { id: string };
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const contractId = params.id;
@@ -34,8 +46,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ContractPage({ params }: Props) {
   const contractId = params.id;
   const info = await getContractInfo(contractId);
-  const [wasm, eventsPage, invocationsPage, fullStorage, historyGaps, indexerCursor] = await Promise.all([
-    info?.executable === "wasm" ? getContractWasmInfo(contractId, info) : Promise.resolve(null),
+  const [
+    wasm,
+    eventsPage,
+    invocationsPage,
+    fullStorage,
+    historyGaps,
+    indexerCursor,
+  ] = await Promise.all([
+    info?.executable === "wasm"
+      ? getContractWasmInfo(contractId, info)
+      : Promise.resolve(null),
     getContractEventsPage(contractId, { limit: EVENT_PAGE_SIZE }),
     getInvocationHistoryPage(contractId, { limit: INVOCATION_PAGE_SIZE }),
     getFullStorageEntries(contractId),
@@ -44,13 +65,18 @@ export default async function ContractPage({ params }: Props) {
   ]);
 
   const rpcFallback = !isIndexerConfigured();
-  const storageCount = fullStorage.length > 0 ? fullStorage.length : (info?.instanceStorage ?? []).length;
+  const storageCount =
+    fullStorage.length > 0
+      ? fullStorage.length
+      : (info?.instanceStorage ?? []).length;
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-1">Contract</h1>
       <div className="flex items-start gap-2 mb-8">
-        <p className="text-prism-muted font-mono text-sm break-all">{contractId}</p>
+        <p className="text-prism-muted font-mono text-sm break-all">
+          {contractId}
+        </p>
         <CopyButton value={contractId} what="contract ID" />
       </div>
 
@@ -75,10 +101,7 @@ export default async function ContractPage({ params }: Props) {
         <IndexerStatus cursor={indexerCursor} />
 
         <section>
-          <SectionHeader
-            title="Storage"
-            count={storageCount}
-          />
+          <SectionHeader title="Storage" count={storageCount} />
           <ContractStorageView
             contractId={contractId}
             instanceStorage={info?.instanceStorage ?? []}

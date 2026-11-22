@@ -40,7 +40,14 @@ describe("decodeScVal / scValToDisplay", () => {
   });
 
   it("decodes a u128 to a string (bigints aren't JSON-safe)", () => {
-    const decoded = decodeScVal(xdr.ScVal.scvU128(new xdr.UInt128Parts({ hi: xdr.Uint64.fromString("0"), lo: xdr.Uint64.fromString("1000") })));
+    const decoded = decodeScVal(
+      xdr.ScVal.scvU128(
+        new xdr.UInt128Parts({
+          hi: xdr.Uint64.fromString("0"),
+          lo: xdr.Uint64.fromString("1000"),
+        })
+      )
+    );
     expect(decoded).toBe("1000");
   });
 
@@ -108,9 +115,11 @@ describe("coerceArgInput", () => {
 
   it("accepts a contract address", () => {
     const contract = StrKey.encodeContract(Buffer.alloc(32, 1));
-    expect(Address.fromScAddress(coerceArgInput(contract, "Address").address()).toString()).toBe(
-      contract
-    );
+    expect(
+      Address.fromScAddress(
+        coerceArgInput(contract, "Address").address()
+      ).toString()
+    ).toBe(contract);
   });
 
   it("rejects a mistyped address with a message that names the problem", () => {
@@ -142,14 +151,24 @@ describe("coerceArgInput", () => {
   });
 
   it("converts hex bytes with or without a 0x prefix", () => {
-    expect(coerceArgInput("0xabcd", "Bytes").bytes().toString("hex")).toBe("abcd");
-    expect(coerceArgInput("ABCD", "Bytes").bytes().toString("hex")).toBe("abcd");
+    expect(coerceArgInput("0xabcd", "Bytes").bytes().toString("hex")).toBe(
+      "abcd"
+    );
+    expect(coerceArgInput("ABCD", "Bytes").bytes().toString("hex")).toBe(
+      "abcd"
+    );
   });
 
   it("rejects bytes that are not whole hex pairs instead of silently truncating them", () => {
-    expect(() => coerceArgInput("zz", "Bytes")).toThrow('"zz" is not valid hex.');
-    expect(() => coerceArgInput("ab_cd", "Bytes")).toThrow('"ab_cd" is not valid hex.');
-    expect(() => coerceArgInput("abc", "Bytes")).toThrow('"abc" is not valid hex.');
+    expect(() => coerceArgInput("zz", "Bytes")).toThrow(
+      '"zz" is not valid hex.'
+    );
+    expect(() => coerceArgInput("ab_cd", "Bytes")).toThrow(
+      '"ab_cd" is not valid hex.'
+    );
+    expect(() => coerceArgInput("abc", "Bytes")).toThrow(
+      '"abc" is not valid hex.'
+    );
   });
 });
 
@@ -158,7 +177,12 @@ describe("coerceArgInput integer ranges", () => {
     { type: "U32", min: "0", max: "4294967295", scvName: "scvU32" },
     { type: "I32", min: "-2147483648", max: "2147483647", scvName: "scvI32" },
     { type: "U64", min: "0", max: "18446744073709551615", scvName: "scvU64" },
-    { type: "I64", min: "-9223372036854775808", max: "9223372036854775807", scvName: "scvI64" },
+    {
+      type: "I64",
+      min: "-9223372036854775808",
+      max: "9223372036854775807",
+      scvName: "scvI64",
+    },
     {
       type: "U128",
       min: "0",
@@ -185,24 +209,39 @@ describe("coerceArgInput integer ranges", () => {
     },
   ];
 
-  it.each(integerTypes)("accepts the bounds of $type", ({ type, min, max, scvName }) => {
-    expect(coerceArgInput(min, type).switch().name).toBe(scvName);
-    expect(coerceArgInput(max, type).switch().name).toBe(scvName);
-  });
-
-  it.each(integerTypes)("rejects values outside $type's range and names its bounds", ({ type, min, max }) => {
-    const tooBig = (BigInt(max) + BigInt(1)).toString();
-    const tooSmall = (BigInt(min) - BigInt(1)).toString();
-    const message = `is not a valid ${type}. ${type} takes a whole number from ${min} to ${max}.`;
-    expect(() => coerceArgInput(tooBig, type)).toThrow(`"${tooBig}" ${message}`);
-    expect(() => coerceArgInput(tooSmall, type)).toThrow(`"${tooSmall}" ${message}`);
-  });
-
-  it.each(integerTypes)("rejects decimal and non-numeric input for $type", ({ type }) => {
-    for (const bad of ["1.5", "1e3", "abc", ""]) {
-      expect(() => coerceArgInput(bad, type)).toThrow(`is not a valid ${type}.`);
+  it.each(integerTypes)(
+    "accepts the bounds of $type",
+    ({ type, min, max, scvName }) => {
+      expect(coerceArgInput(min, type).switch().name).toBe(scvName);
+      expect(coerceArgInput(max, type).switch().name).toBe(scvName);
     }
-  });
+  );
+
+  it.each(integerTypes)(
+    "rejects values outside $type's range and names its bounds",
+    ({ type, min, max }) => {
+      const tooBig = (BigInt(max) + BigInt(1)).toString();
+      const tooSmall = (BigInt(min) - BigInt(1)).toString();
+      const message = `is not a valid ${type}. ${type} takes a whole number from ${min} to ${max}.`;
+      expect(() => coerceArgInput(tooBig, type)).toThrow(
+        `"${tooBig}" ${message}`
+      );
+      expect(() => coerceArgInput(tooSmall, type)).toThrow(
+        `"${tooSmall}" ${message}`
+      );
+    }
+  );
+
+  it.each(integerTypes)(
+    "rejects decimal and non-numeric input for $type",
+    ({ type }) => {
+      for (const bad of ["1.5", "1e3", "abc", ""]) {
+        expect(() => coerceArgInput(bad, type)).toThrow(
+          `is not a valid ${type}.`
+        );
+      }
+    }
+  );
 });
 
 describe("parseContractSpec", () => {
@@ -245,7 +284,9 @@ describe("parseContractSpec", () => {
 
   it("returns an empty array for a WASM binary with no contract spec section", () => {
     // Smallest valid WASM module: magic number + version, no sections.
-    const emptyModule = Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+    const emptyModule = Buffer.from([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+    ]);
     expect(parseContractSpec(emptyModule)).toEqual([]);
   });
 
@@ -293,7 +334,9 @@ describe("identifyXdr", () => {
   });
 
   it("identifies a bare ScVal", () => {
-    expect(identifyXdr(xdr.ScVal.scvSymbol("counter").toXDR("base64"))).toBe("ScVal");
+    expect(identifyXdr(xdr.ScVal.scvSymbol("counter").toXDR("base64"))).toBe(
+      "ScVal"
+    );
   });
 
   it("identifies a ledger key", () => {
@@ -305,7 +348,9 @@ describe("identifyXdr", () => {
 
   it("tolerates whitespace and newlines from a copy-paste", () => {
     const base64 = xdr.ScVal.scvU32(7).toXDR("base64");
-    expect(identifyXdr(` ${base64.slice(0, 4)}\n${base64.slice(4)} `)).toBe("ScVal");
+    expect(identifyXdr(` ${base64.slice(0, 4)}\n${base64.slice(4)} `)).toBe(
+      "ScVal"
+    );
   });
 
   it("returns null for input that isn't XDR at all", () => {
@@ -315,7 +360,9 @@ describe("identifyXdr", () => {
 
   it("rejects a truncated blob rather than matching a prefix", () => {
     const envelope = buildEnvelope(Keypair.random()).toXDR();
-    const truncated = Buffer.from(envelope, "base64").subarray(0, 20).toString("base64");
+    const truncated = Buffer.from(envelope, "base64")
+      .subarray(0, 20)
+      .toString("base64");
     expect(identifyXdr(truncated)).not.toBe("TransactionEnvelope");
   });
 });
@@ -326,7 +373,9 @@ describe("decodeAnyXdr", () => {
     const result = decodeAnyXdr(buildEnvelope(source).toXDR());
 
     expect(result?.type).toBe("TransactionEnvelope");
-    const fields = Object.fromEntries(result!.fields.map((f) => [f.label, f.value]));
+    const fields = Object.fromEntries(
+      result!.fields.map((f) => [f.label, f.value])
+    );
     expect(fields["Source account"]).toBe(source.publicKey());
     expect(fields["Fee"]).toBe("100 stroops");
     expect(fields["Sequence"]).toBe("43");
@@ -338,7 +387,9 @@ describe("decodeAnyXdr", () => {
     const result = decodeAnyXdr(xdr.ScVal.scvU32(99).toXDR("base64"));
 
     expect(result?.type).toBe("ScVal");
-    const fields = Object.fromEntries(result!.fields.map((f) => [f.label, f.value]));
+    const fields = Object.fromEntries(
+      result!.fields.map((f) => [f.label, f.value])
+    );
     expect(fields["ScVal type"]).toBe("scvU32");
     expect(fields["Value"]).toBe("99");
   });
@@ -355,7 +406,9 @@ describe("decodeAnyXdr", () => {
 
     const result = decodeAnyXdr(key.toXDR("base64"));
     expect(result?.type).toBe("LedgerKey");
-    const fields = Object.fromEntries(result!.fields.map((f) => [f.label, f.value]));
+    const fields = Object.fromEntries(
+      result!.fields.map((f) => [f.label, f.value])
+    );
     expect(fields["Contract"]).toBe(contract);
     expect(fields["Storage key"]).toBe("Admin");
     expect(fields["Durability"]).toBe("persistent");
@@ -366,7 +419,9 @@ describe("decodeAnyXdr", () => {
     const result = decodeAnyXdr(buildV0Envelope(source).toXDR("base64"));
 
     expect(result?.type).toBe("TransactionEnvelope");
-    const fields = Object.fromEntries(result!.fields.map((f) => [f.label, f.value]));
+    const fields = Object.fromEntries(
+      result!.fields.map((f) => [f.label, f.value])
+    );
     expect(fields["Envelope type"]).toBe("envelopeTypeTxV0");
     expect(fields["Source account"]).toBe(source.publicKey());
     expect(fields["Fee"]).toBe("100 stroops");
@@ -458,7 +513,9 @@ function bumpedEntry(): xdr.ScSpecEntry {
       lib: "",
       name: "Bumped",
       prefixTopics: ["bumped"],
-      params: [eventParam("counter", xdr.ScSpecTypeDef.scSpecTypeU32(), "data")],
+      params: [
+        eventParam("counter", xdr.ScSpecTypeDef.scSpecTypeU32(), "data"),
+      ],
       dataFormat: xdr.ScSpecEventDataFormat.scSpecEventDataFormatSingleValue(),
     })
   );
@@ -492,13 +549,18 @@ describe("parseContractEvents", () => {
 
   it("reads events and functions from the same spec section", () => {
     const wasm = wasmWithSpec([noteWrittenEntry(), bumpedEntry()]);
-    expect(parseContractEvents(wasm).map((e) => e.name)).toEqual(["NoteWritten", "Bumped"]);
+    expect(parseContractEvents(wasm).map((e) => e.name)).toEqual([
+      "NoteWritten",
+      "Bumped",
+    ]);
     // Function parsing must ignore the event entries, not choke on them.
     expect(parseContractSpec(wasm)).toEqual([]);
   });
 
   it("returns an empty array for a contract with no spec section", () => {
-    const emptyModule = Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+    const emptyModule = Buffer.from([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+    ]);
     expect(parseContractEvents(emptyModule)).toEqual([]);
     expect(parseContractEvents(Buffer.from("not wasm"))).toEqual([]);
   });
@@ -541,11 +603,15 @@ describe("matchEventSpec / labelEventTopics", () => {
   it("rejects a topic count that doesn't match the declaration", () => {
     // Right prefix, wrong arity — a different event, not this one.
     expect(matchEventSpec(["note_written", "hello"], specs)).toBeUndefined();
-    expect(matchEventSpec(["note_written", "hello", "GABC", "extra"], specs)).toBeUndefined();
+    expect(
+      matchEventSpec(["note_written", "hello", "GABC", "extra"], specs)
+    ).toBeUndefined();
   });
 
   it("labels the topics that vary, dropping the event's name topic", () => {
-    expect(labelEventTopics(["note_written", "hello", "GABC"], specs[0])).toEqual([
+    expect(
+      labelEventTopics(["note_written", "hello", "GABC"], specs[0])
+    ).toEqual([
       { name: "name", type: "Symbol", value: "hello" },
       { name: "author", type: "Address", value: "GABC" },
     ]);
@@ -558,7 +624,9 @@ describe("matchEventSpec / labelEventTopics", () => {
 
 describe("base64FromQueryParam", () => {
   it("restores pluses that a query string decoded as spaces", () => {
-    expect(base64FromQueryParam("AAAAAgAAAAALEDS eRmphqUKYJ")).toBe("AAAAAgAAAAALEDS+eRmphqUKYJ");
+    expect(base64FromQueryParam("AAAAAgAAAAALEDS eRmphqUKYJ")).toBe(
+      "AAAAAgAAAAALEDS+eRmphqUKYJ"
+    );
   });
 
   it("leaves a correctly percent-encoded blob untouched", () => {
@@ -624,7 +692,9 @@ describe("labelEventData", () => {
 
   it("refuses a payload of the wrong shape for its format", () => {
     expect(labelEventData('[2,"GABC"]', mapSpec)).toBeNull();
-    expect(labelEventData('{"revision":2,"author":"GABC"}', vecSpec)).toBeNull();
+    expect(
+      labelEventData('{"revision":2,"author":"GABC"}', vecSpec)
+    ).toBeNull();
   });
 
   it("returns null for an unparsable payload", () => {
@@ -656,13 +726,19 @@ describe("coerceArgInput with compound types", () => {
     const vec = coerceArgInput('["a","b"]', "Vec<Symbol>");
     expect(vec.switch().name).toBe("scvVec");
     // Inferring from JSON alone yields scvString here, which the contract rejects.
-    expect(vec.vec()!.map((v) => v.switch().name)).toEqual(["scvSymbol", "scvSymbol"]);
+    expect(vec.vec()!.map((v) => v.switch().name)).toEqual([
+      "scvSymbol",
+      "scvSymbol",
+    ]);
     expect(vec.vec()!.map((v) => v.sym().toString())).toEqual(["a", "b"]);
   });
 
   it("coerces a Vec of the widest integer type without falling back to u64", () => {
     const vec = coerceArgInput("[1,2]", "Vec<I128>");
-    expect(vec.vec()!.map((v) => v.switch().name)).toEqual(["scvI128", "scvI128"]);
+    expect(vec.vec()!.map((v) => v.switch().name)).toEqual([
+      "scvI128",
+      "scvI128",
+    ]);
   });
 
   it("handles a nested Vec", () => {
@@ -681,7 +757,10 @@ describe("coerceArgInput with compound types", () => {
     expect(map.switch().name).toBe("scvMap");
     const entries = map.map()!;
     expect(entries.map((e) => e.key().sym().toString())).toEqual(["a", "b"]);
-    expect(entries.map((e) => e.val().switch().name)).toEqual(["scvU32", "scvU32"]);
+    expect(entries.map((e) => e.val().switch().name)).toEqual([
+      "scvU32",
+      "scvU32",
+    ]);
   });
 
   it("treats an empty Option as void and a filled one as its inner type", () => {
@@ -691,8 +770,12 @@ describe("coerceArgInput with compound types", () => {
   });
 
   it("reports what it wanted when the input isn't the right shape", () => {
-    expect(() => coerceArgInput('"a"', "Vec<Symbol>")).toThrow(/expects a JSON array/);
-    expect(() => coerceArgInput("[1]", "Map<Symbol, U32>")).toThrow(/expects a JSON object/);
+    expect(() => coerceArgInput('"a"', "Vec<Symbol>")).toThrow(
+      /expects a JSON array/
+    );
+    expect(() => coerceArgInput("[1]", "Map<Symbol, U32>")).toThrow(
+      /expects a JSON object/
+    );
   });
 
   it("coerces tuple elements against their declared types", () => {
@@ -716,7 +799,9 @@ describe("coerceArgInput with compound types", () => {
   });
 
   it("still falls back to JSON inference for a contract's own types", () => {
-    expect(coerceArgInput('{"a":1}', "SomeUdtType").switch().name).toBe("scvMap");
+    expect(coerceArgInput('{"a":1}', "SomeUdtType").switch().name).toBe(
+      "scvMap"
+    );
   });
 });
 
@@ -772,7 +857,11 @@ describe("parseContractTypes", () => {
         lib: "",
         name: "Error",
         cases: [
-          new xdr.ScSpecUdtErrorEnumCaseV0({ doc: "", name: "NotInitialized", value: 2 }),
+          new xdr.ScSpecUdtErrorEnumCaseV0({
+            doc: "",
+            name: "NotInitialized",
+            value: 2,
+          }),
         ],
       })
     );
@@ -813,10 +902,19 @@ describe("parseContractTypes", () => {
   });
 
   it("reads type definitions alongside functions and events", () => {
-    const wasm = wasmWithSpec([structEntry(), noteWrittenEntry(), unionEntry()]);
-    expect(parseContractTypes(wasm).map((t) => t.name)).toEqual(["Note", "DataKey"]);
+    const wasm = wasmWithSpec([
+      structEntry(),
+      noteWrittenEntry(),
+      unionEntry(),
+    ]);
+    expect(parseContractTypes(wasm).map((t) => t.name)).toEqual([
+      "Note",
+      "DataKey",
+    ]);
     // The other parsers must ignore these entries rather than choke on them.
-    expect(parseContractEvents(wasm).map((e) => e.name)).toEqual(["NoteWritten"]);
+    expect(parseContractEvents(wasm).map((e) => e.name)).toEqual([
+      "NoteWritten",
+    ]);
     expect(parseContractSpec(wasm)).toEqual([]);
   });
 
@@ -865,19 +963,29 @@ describe("coerceArgInput with the contract's own types", () => {
   const address = Keypair.random().publicKey();
 
   it("encodes a named struct as a map of field-name symbols", () => {
-    const value = coerceArgInput(`{"author":"${address}","revision":2}`, "Note", types);
+    const value = coerceArgInput(
+      `{"author":"${address}","revision":2}`,
+      "Note",
+      types
+    );
     expect(value.switch().name).toBe("scvMap");
     const entries = value.map()!;
-    expect(entries.map((e) => e.key().sym().toString())).toEqual(["author", "revision"]);
+    expect(entries.map((e) => e.key().sym().toString())).toEqual([
+      "author",
+      "revision",
+    ]);
     // Field types come from the declaration, not from JSON inference.
     expect(entries[0].val().switch().name).toBe("scvAddress");
     expect(entries[1].val().switch().name).toBe("scvU32");
   });
 
-  it("encodes a tuple struct as a vec, not a map keyed by \"0\"", () => {
+  it('encodes a tuple struct as a vec, not a map keyed by "0"', () => {
     const value = coerceArgInput('["a",7]', "Pair", types);
     expect(value.switch().name).toBe("scvVec");
-    expect(value.vec()!.map((v) => v.switch().name)).toEqual(["scvSymbol", "scvU32"]);
+    expect(value.vec()!.map((v) => v.switch().name)).toEqual([
+      "scvSymbol",
+      "scvU32",
+    ]);
   });
 
   it("encodes a payload-free union case from its bare name", () => {
@@ -896,9 +1004,12 @@ describe("coerceArgInput with the contract's own types", () => {
   });
 
   it("accepts a single payload value without an array wrapper", () => {
-    expect(coerceArgInput('{"Note":"hello"}', "DataKey", types).vec()![1].sym().toString()).toBe(
-      "hello"
-    );
+    expect(
+      coerceArgInput('{"Note":"hello"}', "DataKey", types)
+        .vec()![1]
+        .sym()
+        .toString()
+    ).toBe("hello");
   });
 
   it("encodes a u32 enum by case name or discriminant", () => {
@@ -909,23 +1020,41 @@ describe("coerceArgInput with the contract's own types", () => {
   it("recurses so a struct can hold the contract's other types", () => {
     const nested: ParsedTypeDef[] = [
       ...types,
-      { kind: "struct", name: "Wrapper", fields: [{ name: "level", type: "Level" }] },
+      {
+        kind: "struct",
+        name: "Wrapper",
+        fields: [{ name: "level", type: "Level" }],
+      },
     ];
     const value = coerceArgInput('{"level":"Low"}', "Wrapper", nested);
     expect(value.map()![0].val().u32()).toBe(1);
   });
 
   it("says what it wanted when the input doesn't fit the declaration", () => {
-    expect(() => coerceArgInput('{"author":"G"}', "Note", types)).toThrow(/missing field\(s\): revision/);
-    expect(() => coerceArgInput("Nope", "Level", types)).toThrow(/no case Nope/);
-    expect(() => coerceArgInput('{"Ghost":[]}', "DataKey", types)).toThrow(/no case Ghost/);
-    expect(() => coerceArgInput("Note", "DataKey", types)).toThrow(/takes 1 value/);
-    expect(() => coerceArgInput('{"Note":["a","b"]}', "DataKey", types)).toThrow(/got 2/);
-    expect(() => coerceArgInput('["a",7]', "Note", types)).toThrow(/expects a JSON object/);
+    expect(() => coerceArgInput('{"author":"G"}', "Note", types)).toThrow(
+      /missing field\(s\): revision/
+    );
+    expect(() => coerceArgInput("Nope", "Level", types)).toThrow(
+      /no case Nope/
+    );
+    expect(() => coerceArgInput('{"Ghost":[]}', "DataKey", types)).toThrow(
+      /no case Ghost/
+    );
+    expect(() => coerceArgInput("Note", "DataKey", types)).toThrow(
+      /takes 1 value/
+    );
+    expect(() =>
+      coerceArgInput('{"Note":["a","b"]}', "DataKey", types)
+    ).toThrow(/got 2/);
+    expect(() => coerceArgInput('["a",7]', "Note", types)).toThrow(
+      /expects a JSON object/
+    );
   });
 
   it("refuses an error type as an argument", () => {
-    expect(() => coerceArgInput("NoSuchNote", "Error", types)).toThrow(/can't be passed as an argument/);
+    expect(() => coerceArgInput("NoSuchNote", "Error", types)).toThrow(
+      /can't be passed as an argument/
+    );
   });
 
   it("still falls back to JSON inference when no definitions are supplied", () => {
@@ -947,7 +1076,8 @@ describe("decodeTransactionFailure", () => {
   /** The failure a result XDR describes, failing the test if it describes none. */
   function failureOf(resultXdr: string): TransactionFailure {
     const outcome = decodeTransactionFailure(resultXdr);
-    if (outcome.status !== "failed") throw new Error(`expected a failure, got ${outcome.status}`);
+    if (outcome.status !== "failed")
+      throw new Error(`expected a failure, got ${outcome.status}`);
     return outcome.failure;
   }
 
@@ -988,11 +1118,15 @@ describe("decodeTransactionFailure", () => {
       result: xdr.TransactionResultResult.txSuccess([]),
       ext: new xdr.TransactionResultExt(0),
     });
-    expect(decodeTransactionFailure(success.toXDR("base64"))).toEqual({ status: "succeeded" });
+    expect(decodeTransactionFailure(success.toXDR("base64"))).toEqual({
+      status: "succeeded",
+    });
   });
 
   it("reports a result it can't parse as undecodable, not as a success", () => {
-    expect(decodeTransactionFailure("not xdr")).toEqual({ status: "undecodable" });
+    expect(decodeTransactionFailure("not xdr")).toEqual({
+      status: "undecodable",
+    });
     expect(decodeTransactionFailure("")).toEqual({ status: "undecodable" });
   });
 
@@ -1004,7 +1138,9 @@ describe("decodeTransactionFailure", () => {
             xdr.OperationResultTr.payment(xdr.PaymentResult.paymentSuccess())
           ),
           xdr.OperationResult.opInner(
-            xdr.OperationResultTr.payment(xdr.PaymentResult.paymentUnderfunded())
+            xdr.OperationResultTr.payment(
+              xdr.PaymentResult.paymentUnderfunded()
+            )
           ),
         ])
       );
@@ -1030,8 +1166,12 @@ describe("decodeTransactionFailure", () => {
     });
 
     it("reads a classic failure that carries no nested operation result", () => {
-      const failure = failureOf(failedResultXdr([xdr.OperationResult.opBadAuth()]));
-      expect(failure.operations).toEqual([{ index: 0, code: "opBadAuth", failed: true }]);
+      const failure = failureOf(
+        failedResultXdr([xdr.OperationResult.opBadAuth()])
+      );
+      expect(failure.operations).toEqual([
+        { index: 0, code: "opBadAuth", failed: true },
+      ]);
     });
   });
 });

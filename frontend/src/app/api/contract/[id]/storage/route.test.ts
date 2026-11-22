@@ -8,7 +8,9 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 vi.mock("@/lib/soroban", () => ({
   SIMPLE_STORAGE_KEY_KINDS: ["symbol", "string", "u32", "address"],
   getContractWasmInfo: vi.fn(),
-  parseStorageKeyInput: vi.fn(() => ({ switch: () => ({ name: "scvSymbol" }) })),
+  parseStorageKeyInput: vi.fn(() => ({
+    switch: () => ({ name: "scvSymbol" }),
+  })),
   lookupStorageEntry: vi.fn(),
 }));
 vi.mock("@/lib/rate-limit", () => ({
@@ -16,17 +18,27 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 import { GET } from "./route";
-import { getContractWasmInfo, lookupStorageEntry, parseStorageKeyInput } from "@/lib/soroban";
+import {
+  getContractWasmInfo,
+  lookupStorageEntry,
+  parseStorageKeyInput,
+} from "@/lib/soroban";
 
 const CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
 const params = { params: { id: CONTRACT_ID } };
 
 function makeRequest(query: string): Request {
-  return new Request(`http://localhost/api/contract/${CONTRACT_ID}/storage?${query}`);
+  return new Request(
+    `http://localhost/api/contract/${CONTRACT_ID}/storage?${query}`
+  );
 }
 
 const dataKeyTypes = [
-  { kind: "union" as const, name: "DataKey", cases: [{ name: "Note", types: ["Symbol"] }] },
+  {
+    kind: "union" as const,
+    name: "DataKey",
+    cases: [{ name: "Note", types: ["Symbol"] }],
+  },
 ];
 
 afterEach(() => {
@@ -60,18 +72,30 @@ describe("GET /api/contract/[id]/storage", () => {
   });
 
   it("accepts a contract-defined kind and coerces with its parsed types", async () => {
-    vi.mocked(getContractWasmInfo).mockResolvedValue({ types: dataKeyTypes } as never);
+    vi.mocked(getContractWasmInfo).mockResolvedValue({
+      types: dataKeyTypes,
+    } as never);
 
     const rawKey = JSON.stringify({ Note: ["hello"] });
     const res = await GET(
-      makeRequest(`key=${encodeURIComponent(rawKey)}&kind=DataKey&durability=temporary`),
+      makeRequest(
+        `key=${encodeURIComponent(rawKey)}&kind=DataKey&durability=temporary`
+      ),
       params
     );
 
     expect(res.status).toBe(200);
     expect(getContractWasmInfo).toHaveBeenCalledWith(CONTRACT_ID);
-    expect(parseStorageKeyInput).toHaveBeenCalledWith(rawKey, "DataKey", dataKeyTypes);
-    expect(lookupStorageEntry).toHaveBeenCalledWith(expect.anything(), expect.anything(), "temporary");
+    expect(parseStorageKeyInput).toHaveBeenCalledWith(
+      rawKey,
+      "DataKey",
+      dataKeyTypes
+    );
+    expect(lookupStorageEntry).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "temporary"
+    );
   });
 
   it("returns 404 when no entry exists", async () => {

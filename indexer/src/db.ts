@@ -41,7 +41,11 @@ export async function getBackfillCursor(fromLedger: number, toLedger: number) {
     }
     return existing;
   }
-  if (existing?.completed && existing.fromLedger === fromLedger && existing.toLedger === toLedger) {
+  if (
+    existing?.completed &&
+    existing.fromLedger === fromLedger &&
+    existing.toLedger === toLedger
+  ) {
     return existing;
   }
   return prisma.backfillCursor.upsert({
@@ -74,6 +78,13 @@ export async function setBackfillCursor(
   await prisma.backfillCursor.upsert({
     where: { id: 1 },
     update: { lastLedger, paginationCursor, completed },
-    create: { id: 1, fromLedger, toLedger, lastLedger, paginationCursor, completed },
+    create: {
+      id: 1,
+      fromLedger,
+      toLedger,
+      lastLedger,
+      paginationCursor,
+      completed,
+    },
   });
 }

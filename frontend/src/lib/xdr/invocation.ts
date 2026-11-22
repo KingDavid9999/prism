@@ -1,5 +1,10 @@
 import { Address, xdr } from "@stellar/stellar-sdk";
-import type { FootprintEntry, OperationInvocation, ResourceUsage, SorobanInvocation } from "@/types";
+import type {
+  FootprintEntry,
+  OperationInvocation,
+  ResourceUsage,
+  SorobanInvocation,
+} from "@/types";
 import { scValToDisplay } from "./display";
 
 /**
@@ -10,9 +15,12 @@ import { scValToDisplay } from "./display";
  * resource data), so callers looking for contract activity have nothing to
  * find in one.
  */
-export function v1Tx(envelope: xdr.TransactionEnvelope): xdr.Transaction | null {
+export function v1Tx(
+  envelope: xdr.TransactionEnvelope
+): xdr.Transaction | null {
   const kind = envelope.switch().name;
-  if (kind === "envelopeTypeTxFeeBump") return envelope.feeBump().tx().innerTx().v1().tx();
+  if (kind === "envelopeTypeTxFeeBump")
+    return envelope.feeBump().tx().innerTx().v1().tx();
   if (kind === "envelopeTypeTx") return envelope.v1().tx();
   return null;
 }
@@ -22,7 +30,9 @@ export function v1Tx(envelope: xdr.TransactionEnvelope): xdr.Transaction | null 
  * operation order. A transaction can call several contracts, so each call is
  * tagged with the index of the operation it came from.
  */
-export function decodeInvocations(envelope: xdr.TransactionEnvelope): OperationInvocation[] {
+export function decodeInvocations(
+  envelope: xdr.TransactionEnvelope
+): OperationInvocation[] {
   try {
     const tx = v1Tx(envelope);
     if (!tx) return [];
@@ -46,7 +56,9 @@ export function decodeInvocations(envelope: xdr.TransactionEnvelope): OperationI
 }
 
 /** Decode a transaction envelope's first InvokeHostFunction contract call (function name + args), if any. */
-export function decodeInvocation(envelope: xdr.TransactionEnvelope): SorobanInvocation | null {
+export function decodeInvocation(
+  envelope: xdr.TransactionEnvelope
+): SorobanInvocation | null {
   return decodeInvocations(envelope)[0] ?? null;
 }
 
@@ -98,8 +110,14 @@ export function getResourceUsage(
     const resources = data.resources();
     const footprint = resources.footprint();
     const footprintEntries: FootprintEntry[] = [
-      ...footprint.readOnly().map((key): FootprintEntry => ({ access: "read", label: ledgerKeyLabel(key) })),
-      ...footprint.readWrite().map((key): FootprintEntry => ({ access: "write", label: ledgerKeyLabel(key) })),
+      ...footprint.readOnly().map((key): FootprintEntry => ({
+        access: "read",
+        label: ledgerKeyLabel(key),
+      })),
+      ...footprint.readWrite().map((key): FootprintEntry => ({
+        access: "write",
+        label: ledgerKeyLabel(key),
+      })),
     ];
     const resourceFeeStroops = data.resourceFee().toString();
     return {

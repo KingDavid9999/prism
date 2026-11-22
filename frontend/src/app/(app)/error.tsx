@@ -23,9 +23,9 @@ export default function Error({
     <div className="max-w-xl">
       <h1 className="text-2xl font-bold mb-2">Couldn&apos;t load this page</h1>
       <p className="text-prism-muted text-sm mb-6">
-        Prism reached for data and didn&apos;t get it. That usually means the configured Horizon or
-        Soroban RPC endpoint is unreachable, overloaded, or timing out — not that what you searched for
-        is missing.
+        Prism reached for data and didn&apos;t get it. That usually means the
+        configured Horizon or Soroban RPC endpoint is unreachable, overloaded,
+        or timing out — not that what you searched for is missing.
       </p>
 
       <div className="flex gap-2">
@@ -44,7 +44,9 @@ export default function Error({
       </div>
 
       {error.digest && (
-        <p className="text-xs text-prism-muted font-mono mt-6">Reference: {error.digest}</p>
+        <p className="text-xs text-prism-muted font-mono mt-6">
+          Reference: {error.digest}
+        </p>
       )}
     </div>
   );

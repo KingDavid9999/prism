@@ -1,15 +1,19 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Keypair } from "@stellar/stellar-sdk";
 import { parseStorageKeyInput } from "./soroban";
 import type { ContractTypeDef } from "@/types";
 
 describe("parseStorageKeyInput", () => {
   it("builds a symbol key", () => {
-    expect(parseStorageKeyInput("Admin", "symbol").switch().name).toBe("scvSymbol");
+    expect(parseStorageKeyInput("Admin", "symbol").switch().name).toBe(
+      "scvSymbol"
+    );
   });
 
   it("builds a string key", () => {
-    expect(parseStorageKeyInput("hello", "string").switch().name).toBe("scvString");
+    expect(parseStorageKeyInput("hello", "string").switch().name).toBe(
+      "scvString"
+    );
   });
 
   it("builds a u32 key", () => {
@@ -20,7 +24,9 @@ describe("parseStorageKeyInput", () => {
 
   it("builds an address key from a valid account address", () => {
     const address = Keypair.random().publicKey();
-    expect(parseStorageKeyInput(address, "address").switch().name).toBe("scvAddress");
+    expect(parseStorageKeyInput(address, "address").switch().name).toBe(
+      "scvAddress"
+    );
   });
 
   it("throws for an invalid address", () => {
@@ -30,7 +36,9 @@ describe("parseStorageKeyInput", () => {
   it("accepts any spec type string, not just the four simple presets", () => {
     expect(parseStorageKeyInput("42", "u64").switch().name).toBe("scvU64");
     expect(parseStorageKeyInput("1", "i128").switch().name).toBe("scvI128");
-    expect(parseStorageKeyInput('["a", "b"]', "Vec<Symbol>").switch().name).toBe("scvVec");
+    expect(
+      parseStorageKeyInput('["a", "b"]', "Vec<Symbol>").switch().name
+    ).toBe("scvVec");
   });
 
   const dataKey: ContractTypeDef = {
@@ -44,7 +52,9 @@ describe("parseStorageKeyInput", () => {
   };
 
   it("coerces a union variant key using the contract's type definitions", () => {
-    const key = parseStorageKeyInput('{"Note":["hello"]}', "DataKey", [dataKey]);
+    const key = parseStorageKeyInput('{"Note":["hello"]}', "DataKey", [
+      dataKey,
+    ]);
     expect(key.switch().name).toBe("scvVec");
     const parts = key.vec()!;
     expect(parts).toHaveLength(2);

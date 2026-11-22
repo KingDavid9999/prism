@@ -92,7 +92,9 @@ export const showcaseEnvelope = (() => {
     footprint: new xdr.LedgerFootprint({
       readOnly: [
         dataKey("Admin"),
-        xdr.LedgerKey.contractCode(new xdr.LedgerKeyContractCode({ hash: wasmHash })),
+        xdr.LedgerKey.contractCode(
+          new xdr.LedgerKeyContractCode({ hash: wasmHash })
+        ),
       ],
       readWrite: [dataKey("counter")],
     }),
@@ -106,7 +108,9 @@ export const showcaseEnvelope = (() => {
     resourceFee: xdr.Int64.fromString("5000"),
   });
   const tx = new xdr.Transaction({
-    sourceAccount: xdr.MuxedAccount.keyTypeEd25519(StrKey.decodeEd25519PublicKey(source)),
+    sourceAccount: xdr.MuxedAccount.keyTypeEd25519(
+      StrKey.decodeEd25519PublicKey(source)
+    ),
     fee: 100,
     seqNum: xdr.Int64.fromString("1"),
     cond: xdr.Preconditions.precondNone(),

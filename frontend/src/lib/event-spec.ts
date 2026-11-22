@@ -19,7 +19,9 @@ export function matchEventSpec(
   specs: ParsedEventSpec[]
 ): ParsedEventSpec | undefined {
   return specs.find((spec) => {
-    const topicParams = spec.params.filter((p) => p.location === "topic").length;
+    const topicParams = spec.params.filter(
+      (p) => p.location === "topic"
+    ).length;
     if (topics.length !== spec.prefixTopics.length + topicParams) return false;
     return spec.prefixTopics.every((topic, i) => topics[i] === topic);
   });
@@ -68,7 +70,10 @@ function displayValue(value: unknown): string {
  * promises, so the caller can fall back to showing it raw instead of
  * confidently attaching the wrong name to a value.
  */
-export function labelEventData(value: string, spec: ParsedEventSpec): LabelledField[] | null {
+export function labelEventData(
+  value: string,
+  spec: ParsedEventSpec
+): LabelledField[] | null {
   const params = spec.params.filter((p) => p.location === "data");
   if (params.length === 0) return null;
 
@@ -88,7 +93,8 @@ export function labelEventData(value: string, spec: ParsedEventSpec): LabelledFi
   }
 
   if (spec.dataFormat === "vec") {
-    if (!Array.isArray(decoded) || decoded.length !== params.length) return null;
+    if (!Array.isArray(decoded) || decoded.length !== params.length)
+      return null;
     return params.map((param, i) => ({
       name: param.name,
       type: param.type,
@@ -96,7 +102,8 @@ export function labelEventData(value: string, spec: ParsedEventSpec): LabelledFi
     }));
   }
 
-  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) return null;
+  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded))
+    return null;
   const payload = decoded as Record<string, unknown>;
   if (!params.every((param) => param.name in payload)) return null;
 

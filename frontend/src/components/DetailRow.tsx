@@ -21,7 +21,11 @@ export default function DetailRow({ label, value, mono, link }: Props) {
           {value}
         </Link>
       ) : (
-        <span className={`text-sm text-right break-all ${mono ? "font-mono" : ""}`}>{value}</span>
+        <span
+          className={`text-sm text-right break-all ${mono ? "font-mono" : ""}`}
+        >
+          {value}
+        </span>
       )}
     </div>
   );

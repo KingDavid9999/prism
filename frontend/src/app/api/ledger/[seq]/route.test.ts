@@ -5,7 +5,7 @@ vi.mock("@/lib/horizon", () => ({
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: vi.fn().mockReturnValue(null),
+  rateLimitRequest: vi.fn().mockReturnValue(null),
 }));
 
 afterEach(() => {
@@ -37,13 +37,17 @@ describe("GET /api/ledger/[seq] (issue #31 — reject non-numeric sequences)", (
 
   it("rejects a value that exceeds uint32 max", async () => {
     const { GET } = await import("./route");
-    const res = await GET(makeRequest("4294967296"), { params: { seq: "4294967296" } });
+    const res = await GET(makeRequest("4294967296"), {
+      params: { seq: "4294967296" },
+    });
     expect(res.status).toBe(400);
   });
 
   it("accepts the uint32 max value", async () => {
     const { GET } = await import("./route");
-    const res = await GET(makeRequest("4294967295"), { params: { seq: "4294967295" } });
+    const res = await GET(makeRequest("4294967295"), {
+      params: { seq: "4294967295" },
+    });
     expect(res.status).toBe(200);
   });
 

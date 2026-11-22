@@ -19,7 +19,10 @@ interface Props {
  */
 const MAX_LINKABLE_LENGTH = 3000;
 
-export default function XdrDecoder({ initialInput = "", initialResult = null }: Props) {
+export default function XdrDecoder({
+  initialInput = "",
+  initialResult = null,
+}: Props) {
   const [input, setInput] = useState(initialInput);
   const [result, setResult] = useState<DecodeState>(initialResult);
   const [pending, startTransition] = useTransition();
@@ -57,7 +60,10 @@ export default function XdrDecoder({ initialInput = "", initialResult = null }: 
   return (
     <div>
       <form onSubmit={handleSubmit}>
-        <label htmlFor="xdr-input" className="block text-xs font-mono text-prism-muted mb-2">
+        <label
+          htmlFor="xdr-input"
+          className="block text-xs font-mono text-prism-muted mb-2"
+        >
           XDR Data
         </label>
         <textarea
@@ -101,15 +107,22 @@ export default function XdrDecoder({ initialInput = "", initialResult = null }: 
               </div>
               {result.partial ? (
                 <p className="text-xs text-prism-red">
-                  Partially decoded: Prism recognized this as {result.type}, but couldn&apos;t read
-                  its fields, so none are shown.
+                  Partially decoded: Prism recognized this as {result.type}, but
+                  couldn&apos;t read its fields, so none are shown.
                 </p>
               ) : (
                 <dl className="space-y-3">
                   {result.fields.map((field) => (
-                    <div key={field.label} className="grid grid-cols-[10rem_1fr] gap-3 items-start">
-                      <dt className="text-xs text-prism-muted">{field.label}</dt>
-                      <dd className="text-xs font-mono break-all whitespace-pre-wrap">{field.value}</dd>
+                    <div
+                      key={field.label}
+                      className="grid grid-cols-[10rem_1fr] gap-3 items-start"
+                    >
+                      <dt className="text-xs text-prism-muted">
+                        {field.label}
+                      </dt>
+                      <dd className="text-xs font-mono break-all whitespace-pre-wrap">
+                        {field.value}
+                      </dd>
                     </div>
                   ))}
                 </dl>

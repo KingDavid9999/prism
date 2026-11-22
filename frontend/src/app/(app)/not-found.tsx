@@ -12,9 +12,10 @@ export default function NotFound() {
     <div className="max-w-xl">
       <h1 className="text-2xl font-bold mb-2">Not found</h1>
       <p className="text-prism-muted text-sm mb-6">
-        This network has no record with that identifier. Check it for typos — and check the network
-        badge in the header, because identifiers look identical across networks and something that
-        exists on testnet won&apos;t be found on mainnet.
+        This network has no record with that identifier. Check it for typos —
+        and check the network badge in the header, because identifiers look
+        identical across networks and something that exists on testnet
+        won&apos;t be found on mainnet.
       </p>
 
       <div className="mb-6">

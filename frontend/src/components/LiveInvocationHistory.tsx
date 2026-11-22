@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import InvocationHistory from "./InvocationHistory";
 import SectionHeader from "./SectionHeader";
 import { appendUnique, mergeVisible } from "@/lib/list-pagination";
+import { startVisibilityPolling } from "@/lib/visibility-poll";
 import type { InvocationHistoryItem } from "@/types";
 
 interface Props {
@@ -43,18 +44,20 @@ export default function LiveInvocationHistory({
   const items = mergeVisible(firstPage, olderItems, (item) => item.txHash);
 
   useEffect(() => {
-    const id = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/contract/${contractId}/invocations`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setFirstPage(data.invocations);
-        setNextCursor(data.nextCursor ?? null);
-      } catch {
-        // keep showing the last good data
-      }
-    }, intervalMs);
-    return () => clearInterval(id);
+    return startVisibilityPolling({
+      intervalMs,
+      refresh: async () => {
+        try {
+          const res = await fetch(`/api/contract/${contractId}/invocations`);
+          if (!res.ok) return;
+          const data = await res.json();
+          setFirstPage(data.invocations);
+          setNextCursor(data.nextCursor ?? null);
+        } catch {
+          // keep showing the last good data
+        }
+      },
+    });
   }, [contractId, intervalMs]);
 
   async function loadOlder() {
@@ -68,11 +71,17 @@ export default function LiveInvocationHistory({
       if (!res.ok) throw new Error("The invocations API could not be reached.");
       const data = await res.json();
       setOlderItems((prev) =>
-        appendUnique(prev, data.invocations as InvocationHistoryItem[], (item) => item.txHash)
+        appendUnique(
+          prev,
+          data.invocations as InvocationHistoryItem[],
+          (item) => item.txHash
+        )
       );
       setNextCursor(data.nextCursor ?? null);
     } catch (err) {
-      setOlderError(err instanceof Error ? err.message : "Could not load older invocations.");
+      setOlderError(
+        err instanceof Error ? err.message : "Could not load older invocations."
+      );
     } finally {
       setLoadingOlder(false);
     }
@@ -81,11 +90,12 @@ export default function LiveInvocationHistory({
   return (
     <>
       <SectionHeader
-        title="Recent Invocations"
+        title={title}
         count={items.length}
         cap={nextCursor !== null || derivedFromEvents ? limit : undefined}
         live
       />
+      {children}
       <InvocationHistory items={items} derivedFromEvents={derivedFromEvents} />
       {nextCursor && (
         <div className="mt-3 flex items-center gap-3">
@@ -97,7 +107,9 @@ export default function LiveInvocationHistory({
           >
             {loadingOlder ? "Loading older…" : "Load older"}
           </button>
-          {olderError && <span className="text-xs text-prism-red">{olderError}</span>}
+          {olderError && (
+            <span className="text-xs text-prism-red">{olderError}</span>
+          )}
         </div>
       )}
     </>

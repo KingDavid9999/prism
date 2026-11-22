@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { xdr } from "@stellar/stellar-sdk";
-import { parseContractEvents, parseContractSpec, parseContractTypes } from "./xdr";
+import {
+  parseContractEvents,
+  parseContractSpec,
+  parseContractTypes,
+} from "./xdr";
 
 // Fixed seeds, so a failure reproduces exactly. Add a seed rather than
 // randomizing, which would make a CI failure impossible to replay.
@@ -72,10 +76,12 @@ function validModule(): Buffer {
             doc: "",
             name: "counter",
             type: xdr.ScSpecTypeDef.scSpecTypeU32(),
-            location: xdr.ScSpecEventParamLocationV0.scSpecEventParamLocationData(),
+            location:
+              xdr.ScSpecEventParamLocationV0.scSpecEventParamLocationData(),
           }),
         ],
-        dataFormat: xdr.ScSpecEventDataFormat.scSpecEventDataFormatSingleValue(),
+        dataFormat:
+          xdr.ScSpecEventDataFormat.scSpecEventDataFormatSingleValue(),
       })
     ),
   ];
@@ -121,20 +127,23 @@ describe("WASM spec parsers on malformed modules", () => {
     }
   });
 
-  it.each(SEEDS)("does not throw on a module with flipped bytes (seed %i)", (seed) => {
-    const random = mulberry32(seed);
-    const corrupted = Buffer.from(valid);
-    for (let flip = 0; flip < 4; flip++) {
-      const offset = Math.floor(random() * corrupted.length);
-      // XOR with a non-zero value so every flip really changes the byte.
-      corrupted[offset] ^= 1 + Math.floor(random() * 255);
-    }
+  it.each(SEEDS)(
+    "does not throw on a module with flipped bytes (seed %i)",
+    (seed) => {
+      const random = mulberry32(seed);
+      const corrupted = Buffer.from(valid);
+      for (let flip = 0; flip < 4; flip++) {
+        const offset = Math.floor(random() * corrupted.length);
+        // XOR with a non-zero value so every flip really changes the byte.
+        corrupted[offset] ^= 1 + Math.floor(random() * 255);
+      }
 
-    expect(() => parseContractSpec(corrupted)).not.toThrow();
-    expect(() => parseContractTypes(corrupted)).not.toThrow();
-    expect(() => parseContractEvents(corrupted)).not.toThrow();
-    expect(Array.isArray(parseContractSpec(corrupted))).toBe(true);
-    expect(Array.isArray(parseContractTypes(corrupted))).toBe(true);
-    expect(Array.isArray(parseContractEvents(corrupted))).toBe(true);
-  });
+      expect(() => parseContractSpec(corrupted)).not.toThrow();
+      expect(() => parseContractTypes(corrupted)).not.toThrow();
+      expect(() => parseContractEvents(corrupted)).not.toThrow();
+      expect(Array.isArray(parseContractSpec(corrupted))).toBe(true);
+      expect(Array.isArray(parseContractTypes(corrupted))).toBe(true);
+      expect(Array.isArray(parseContractEvents(corrupted))).toBe(true);
+    }
+  );
 });

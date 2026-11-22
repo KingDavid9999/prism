@@ -21,7 +21,11 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.05) 1px,
+    transparent 1px
+  );
   background-size: 28px 28px;
 }
 
@@ -30,13 +34,24 @@ body {
 }
 
 @keyframes pulseDot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(18px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .landing .pulse-dot {
@@ -63,17 +78,25 @@ body {
   transition: box-shadow 0.15s ease;
 }
 .landing .btn-fill:hover {
-  box-shadow: 0 0 0 1px var(--amber), 0 0 24px rgba(255, 176, 32, 0.5);
+  box-shadow:
+    0 0 0 1px var(--amber),
+    0 0 24px rgba(255, 176, 32, 0.5);
 }
 .landing .btn-fill-lg:hover {
-  box-shadow: 0 0 0 1px var(--amber), 0 0 28px rgba(255, 176, 32, 0.5);
+  box-shadow:
+    0 0 0 1px var(--amber),
+    0 0 28px rgba(255, 176, 32, 0.5);
 }
 .landing .btn-fill-cta:hover {
-  box-shadow: 0 0 0 1px var(--amber), 0 0 32px rgba(255, 176, 32, 0.55);
+  box-shadow:
+    0 0 0 1px var(--amber),
+    0 0 32px rgba(255, 176, 32, 0.55);
 }
 
 .landing .btn-outline {
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 .landing .btn-outline:hover {
   border-color: var(--amber);

@@ -15,18 +15,22 @@ function contractFnCall(
   args: xdr.ScVal[] = []
 ): xdr.SorobanAuthorizedInvocation {
   return new xdr.SorobanAuthorizedInvocation({
-    function: xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
-      new xdr.InvokeContractArgs({
-        contractAddress: new Address(contract).toScAddress(),
-        functionName: fn,
-        args,
-      })
-    ),
+    function:
+      xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
+        new xdr.InvokeContractArgs({
+          contractAddress: new Address(contract).toScAddress(),
+          functionName: fn,
+          args,
+        })
+      ),
     subInvocations: [],
   });
 }
 
-function addressAuthEntry(author: string, root: xdr.SorobanAuthorizedInvocation) {
+function addressAuthEntry(
+  author: string,
+  root: xdr.SorobanAuthorizedInvocation
+) {
   return new xdr.SorobanAuthorizationEntry({
     credentials: xdr.SorobanCredentials.sorobanCredentialsAddress(
       new xdr.SorobanAddressCredentials({
@@ -98,8 +102,14 @@ describe("decodeSimulationEvents", () => {
 
     const events = decodeSimulationEvents(
       [
-        new xdr.DiagnosticEvent({ inSuccessfulContractCall: true, event: systemEvent }),
-        new xdr.DiagnosticEvent({ inSuccessfulContractCall: true, event: contractEvent }),
+        new xdr.DiagnosticEvent({
+          inSuccessfulContractCall: true,
+          event: systemEvent,
+        }),
+        new xdr.DiagnosticEvent({
+          inSuccessfulContractCall: true,
+          event: contractEvent,
+        }),
       ],
       CONTRACT_ID
     );
@@ -143,19 +153,30 @@ describe("extractSacAssetDetails", () => {
     return new xdr.ScMapEntry({
       key: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("METADATA")]),
       val: xdr.ScVal.scvMap([
-        new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol("decimal"), val: xdr.ScVal.scvU32(decimal) }),
-        new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol("name"), val: xdr.ScVal.scvString(name) }),
-        new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol("symbol"), val: xdr.ScVal.scvString(symbol) }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("decimal"),
+          val: xdr.ScVal.scvU32(decimal),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("name"),
+          val: xdr.ScVal.scvString(name),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("symbol"),
+          val: xdr.ScVal.scvString(symbol),
+        }),
       ]),
     });
   }
 
   it("reads the native SAC metadata map", () => {
-    expect(extractSacAssetDetails([metadataEntry("native", "XLM", 7)])).toEqual({
-      name: "native",
-      symbol: "XLM",
-      decimals: 7,
-    });
+    expect(extractSacAssetDetails([metadataEntry("native", "XLM", 7)])).toEqual(
+      {
+        name: "native",
+        symbol: "XLM",
+        decimals: 7,
+      }
+    );
   });
 
   it("keeps the issuer from an issued asset's name", () => {

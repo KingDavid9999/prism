@@ -19,11 +19,11 @@ Thank you for helping build better Stellar tooling!
 
 ## Project Structure
 
-| Directory     | Description                          |
-| ------------- | ------------------------------------ |
-| `frontend/`   | Next.js explorer UI                  |
-| `indexer/`    | Event indexer (TypeScript + Prisma)  |
-| `contracts/`  | Soroban smart contracts (Rust)       |
+| Directory    | Description                         |
+| ------------ | ----------------------------------- |
+| `frontend/`  | Next.js explorer UI                 |
+| `indexer/`   | Event indexer (TypeScript + Prisma) |
+| `contracts/` | Soroban smart contracts (Rust)      |
 
 ## Commands
 

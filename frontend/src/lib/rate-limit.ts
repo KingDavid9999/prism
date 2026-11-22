@@ -36,7 +36,10 @@ export interface RateLimitResult {
  * The in-memory default is synchronous; a Redis implementation is async.
  */
 export interface RateLimitStore {
-  increment(key: string, windowMs: number): Promise<{ count: number; ttlMs: number }>;
+  increment(
+    key: string,
+    windowMs: number
+  ): Promise<{ count: number; ttlMs: number }>;
 }
 
 /**
@@ -57,7 +60,10 @@ export class RedisRateLimitStore implements RateLimitStore {
     return this.client;
   }
 
-  async increment(key: string, windowMs: number): Promise<{ count: number; ttlMs: number }> {
+  async increment(
+    key: string,
+    windowMs: number
+  ): Promise<{ count: number; ttlMs: number }> {
     const redis = await this.getClient();
     const windowSec = Math.ceil(windowMs / 1000);
     // Atomic INCR + EXPIRE: the Lua script ensures the TTL is set exactly once.
@@ -74,7 +80,8 @@ export class RedisRateLimitStore implements RateLimitStore {
 }
 
 /** The active store — Redis when RATE_LIMIT_REDIS_URL is set, otherwise in-memory. */
-export const rateLimitStore: RateLimitStore | null = process.env.RATE_LIMIT_REDIS_URL
+export const rateLimitStore: RateLimitStore | null = process.env
+  .RATE_LIMIT_REDIS_URL
   ? new RedisRateLimitStore(process.env.RATE_LIMIT_REDIS_URL)
   : null;
 
@@ -86,7 +93,11 @@ export const rateLimitStore: RateLimitStore | null = process.env.RATE_LIMIT_REDI
  * Uses the in-memory store directly (synchronous). For the distributed Redis
  * path use rateLimitAsync.
  */
-export function rateLimit(key: string, max: number, windowMs: number): RateLimitResult {
+export function rateLimit(
+  key: string,
+  max: number,
+  windowMs: number
+): RateLimitResult {
   const now = Date.now();
   const bucket = buckets.get(key);
 
@@ -121,7 +132,11 @@ export async function rateLimitAsync(
   if (!store) return rateLimit(key, max, windowMs);
   const { count, ttlMs } = await store.increment(key, windowMs);
   if (count > max) {
-    return { success: false, remaining: 0, retryAfter: Math.ceil(ttlMs / 1000) };
+    return {
+      success: false,
+      remaining: 0,
+      retryAfter: Math.ceil(ttlMs / 1000),
+    };
   }
   return { success: true, remaining: max - count };
 }

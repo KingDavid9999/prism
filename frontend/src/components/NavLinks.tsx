@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/explorer", label: "Home" },
-  { href: "/xdr",      label: "XDR" },
-  { href: "/docs",     label: "API" },
+  { href: "/xdr", label: "XDR" },
+  { href: "/docs", label: "API" },
 ] as const;
 
 export default function NavLinks() {
@@ -21,7 +21,11 @@ export default function NavLinks() {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={active ? "text-prism-strong font-medium" : "hover:text-prism-strong transition"}
+            className={
+              active
+                ? "text-prism-strong font-medium"
+                : "hover:text-prism-strong transition"
+            }
           >
             {label}
           </Link>

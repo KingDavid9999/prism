@@ -58,6 +58,8 @@ describe("IndexerStatus rendering", () => {
   });
 
   it("renders nothing when no indexer is configured", () => {
-    expect(renderToStaticMarkup(createElement(IndexerStatus, { cursor: null }))).toBe("");
+    expect(
+      renderToStaticMarkup(createElement(IndexerStatus, { cursor: null }))
+    ).toBe("");
   });
 });

@@ -24,7 +24,9 @@ export function runWithCacheScope<T>(fn: () => T): T {
  * `generateMetadata` and the page itself). The published React 18 package that
  * unit tests resolve does not export it, so fall back to the local scope above.
  */
-const reactCache = (React as unknown as { cache?: <F extends AnyFn>(fn: F) => F }).cache;
+const reactCache = (
+  React as unknown as { cache?: <F extends AnyFn>(fn: F) => F }
+).cache;
 
 function scopedCache<F extends AnyFn>(fn: F): F {
   const wrapped = ((...args: Parameters<F>) => {

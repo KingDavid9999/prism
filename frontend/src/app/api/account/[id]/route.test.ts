@@ -37,7 +37,9 @@ describe("GET /api/account/[id]", () => {
 
   it("returns 400 for an invalid account ID", async () => {
     const { GET } = await import("./route");
-    const res = await GET(makeRequest("not-an-account"), { params: { id: "not-an-account" } });
+    const res = await GET(makeRequest("not-an-account"), {
+      params: { id: "not-an-account" },
+    });
     expect(res.status).toBe(400);
     expect(getAccount).not.toHaveBeenCalled();
   });

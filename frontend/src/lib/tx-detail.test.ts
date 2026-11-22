@@ -50,11 +50,18 @@ describe("fee bump transactions", () => {
   });
 
   it("falls back to inner max_fee when fee_charged is absent", async () => {
-    const inner = feeBumpTransaction.inner_transaction as Record<string, unknown>;
-    const { fee_charged: _ignored, ...withoutFeeCharged } = inner;
-    horizonReturns({ ...feeBumpTransaction, inner_transaction: withoutFeeCharged });
+    const withoutFeeCharged = {
+      ...(feeBumpTransaction.inner_transaction as Record<string, unknown>),
+    };
+    delete withoutFeeCharged.fee_charged;
+    horizonReturns({
+      ...feeBumpTransaction,
+      inner_transaction: withoutFeeCharged,
+    });
     const { getTransaction } = await import("./horizon");
-    expect((await getTransaction(outerHash)).innerTransaction?.feeCharged).toBe(100);
+    expect((await getTransaction(outerHash)).innerTransaction?.feeCharged).toBe(
+      100
+    );
   });
 
   it("leaves the fee bump fields unset on an ordinary transaction", async () => {
@@ -98,7 +105,9 @@ describe("operations", () => {
       expect.anything()
     );
     expect(operations).toHaveLength(1);
-    const fields = Object.fromEntries(operations[0].fields.map((f) => [f.label, f.value]));
+    const fields = Object.fromEntries(
+      operations[0].fields.map((f) => [f.label, f.value])
+    );
     expect(fields.From).toBe(source);
     expect(fields.To).toBe(destination);
     expect(fields.Asset).toContain("USD");
@@ -123,7 +132,9 @@ describe("operations", () => {
     const { getTransactionOperations } = await import("./horizon");
     const [operation] = await getTransactionOperations(outerHash);
     expect(operation.raw).toBe(true);
-    const fields = Object.fromEntries(operation.fields.map((f) => [f.label, f.value]));
+    const fields = Object.fromEntries(
+      operation.fields.map((f) => [f.label, f.value])
+    );
     expect(fields["Home domain"]).toBe("example.org");
     expect(fields["Low threshold"]).toBe("1");
   });
@@ -131,7 +142,10 @@ describe("operations", () => {
 
 describe("Soroban resource footprint", () => {
   it("lists labelled footprint keys and splits the fee into both parts", () => {
-    const usage = getResourceUsage(showcaseEnvelope, showcaseTransaction.fee_charged);
+    const usage = getResourceUsage(
+      showcaseEnvelope,
+      showcaseTransaction.fee_charged
+    );
     expect(usage).not.toBeNull();
     expect(usage!.resourceFeeStroops).toBe("5000");
     expect(usage!.inclusionFeeStroops).toBe("1500");

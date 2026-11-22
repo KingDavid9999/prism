@@ -2,7 +2,10 @@ const isDev = process.env.NODE_ENV !== "production";
 
 /** Origins of the configured Horizon and RPC endpoints, skipping any value that isn't a URL. */
 function endpointOrigins() {
-  return [process.env.NEXT_PUBLIC_HORIZON_URL, process.env.NEXT_PUBLIC_SOROBAN_RPC_URL]
+  return [
+    process.env.NEXT_PUBLIC_HORIZON_URL,
+    process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
+  ]
     .filter(Boolean)
     .flatMap((url) => {
       try {

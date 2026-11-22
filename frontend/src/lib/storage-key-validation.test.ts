@@ -4,7 +4,9 @@ import { validateStorageKeyValue } from "./storage-key-validation";
 
 describe("validateStorageKeyValue — address kinds", () => {
   it("accepts a valid account address (G…)", () => {
-    expect(validateStorageKeyValue(Keypair.random().publicKey(), "address")).toBeNull();
+    expect(
+      validateStorageKeyValue(Keypair.random().publicKey(), "address")
+    ).toBeNull();
   });
 
   it("accepts a valid contract address (C…)", () => {
@@ -14,15 +16,24 @@ describe("validateStorageKeyValue — address kinds", () => {
   });
 
   it("rejects G followed by 55 zeros — strkeys cannot contain 0", () => {
-    expect(validateStorageKeyValue(`G${"0".repeat(55)}`, "address")).toMatch(/valid account or contract/);
+    expect(validateStorageKeyValue(`G${"0".repeat(55)}`, "address")).toMatch(
+      /valid account or contract/
+    );
   });
 
   it("rejects a C-prefixed all-zeros placeholder too", () => {
-    expect(validateStorageKeyValue(`C${"0".repeat(55)}`, "address")).toMatch(/valid account or contract/);
+    expect(validateStorageKeyValue(`C${"0".repeat(55)}`, "address")).toMatch(
+      /valid account or contract/
+    );
   });
 
   it("rejects lowercase and wrong-length strings", () => {
-    expect(validateStorageKeyValue(Keypair.random().publicKey().toLowerCase(), "address")).toMatch(/valid/);
+    expect(
+      validateStorageKeyValue(
+        Keypair.random().publicKey().toLowerCase(),
+        "address"
+      )
+    ).toMatch(/valid/);
     expect(validateStorageKeyValue("GABC", "address")).toMatch(/valid/);
   });
 

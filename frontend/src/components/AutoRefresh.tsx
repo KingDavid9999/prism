@@ -4,7 +4,9 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { shouldRefresh } from "@/lib/visibility";
 
-interface Props { intervalMs?: number }
+interface Props {
+  intervalMs?: number;
+}
 
 /**
  * Periodically re-runs the server components on this route so data stays

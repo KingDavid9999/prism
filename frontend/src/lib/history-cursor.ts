@@ -24,13 +24,21 @@ export interface HistoryPage<T> {
 }
 
 export function encodeCursor(cursor: HistoryCursor): string {
-  return Buffer.from(JSON.stringify([cursor.ledger, cursor.id])).toString("base64url");
+  return Buffer.from(JSON.stringify([cursor.ledger, cursor.id])).toString(
+    "base64url"
+  );
 }
 
 function decodeCursor(raw: string): HistoryCursor | null {
   try {
-    const parsed: unknown = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
-    if (Array.isArray(parsed) && Number.isInteger(parsed[0]) && typeof parsed[1] === "string") {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(raw, "base64url").toString("utf8")
+    );
+    if (
+      Array.isArray(parsed) &&
+      Number.isInteger(parsed[0]) &&
+      typeof parsed[1] === "string"
+    ) {
       return { ledger: parsed[0], id: parsed[1] };
     }
   } catch {
@@ -44,7 +52,10 @@ function decodeCursor(raw: string): HistoryCursor | null {
  * takes the default, and any other limit is clamped to 1..MAX_PAGE_SIZE.
  * Returns null when a cursor was given but isn't one encodeCursor produced.
  */
-export function parsePageRequest(url: URL, defaultLimit: number): PageRequest | null {
+export function parsePageRequest(
+  url: URL,
+  defaultLimit: number
+): PageRequest | null {
   const rawLimit = Number(url.searchParams.get("limit") ?? defaultLimit);
   const limit = Number.isFinite(rawLimit)
     ? Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(rawLimit)))
@@ -72,5 +83,8 @@ export function takePage<R extends PagedRow>(
   if (rows.length <= limit) return { rows, nextCursor: null };
   const page = rows.slice(0, limit);
   const last = page[limit - 1];
-  return { rows: page, nextCursor: encodeCursor({ ledger: last.ledger, id: last.id }) };
+  return {
+    rows: page,
+    nextCursor: encodeCursor({ ledger: last.ledger, id: last.id }),
+  };
 }

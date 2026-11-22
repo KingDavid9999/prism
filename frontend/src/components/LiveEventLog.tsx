@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import EventLog from "./EventLog";
 import SectionHeader from "./SectionHeader";
 import { appendUnique, mergeVisible } from "@/lib/list-pagination";
+import { startVisibilityPolling } from "@/lib/visibility-poll";
 import type { ContractEvent, ContractEventSpec } from "@/types";
 
 interface Props {
@@ -56,20 +57,14 @@ export default function LiveEventLog({
             setError(data.error ?? "The RPC node rejected the request.");
             return;
           }
-          setEvents(data.events);
+          setFirstPage(data.events);
           setNextCursor(data.nextCursor ?? null);
           setError(null);
         } catch {
           setError("The events API could not be reached.");
         }
-        setFirstPage(data.events);
-        setNextCursor(data.nextCursor ?? null);
-        setError(null);
-      } catch {
-        setError("The events API could not be reached.");
-      }
-    }, intervalMs);
-    return () => clearInterval(id);
+      },
+    });
   }, [contractId, intervalMs]);
 
   async function loadOlder() {
@@ -83,10 +78,14 @@ export default function LiveEventLog({
       if (!res.ok) throw new Error("The events API could not be reached.");
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setOlderEvents((prev) => appendUnique(prev, data.events as ContractEvent[], (event) => event.id));
+      setOlderEvents((prev) =>
+        appendUnique(prev, data.events as ContractEvent[], (event) => event.id)
+      );
       setNextCursor(data.nextCursor ?? null);
     } catch (err) {
-      setOlderError(err instanceof Error ? err.message : "Could not load older events.");
+      setOlderError(
+        err instanceof Error ? err.message : "Could not load older events."
+      );
     } finally {
       setLoadingOlder(false);
     }
@@ -111,7 +110,9 @@ export default function LiveEventLog({
           >
             {loadingOlder ? "Loading older…" : "Load older"}
           </button>
-          {olderError && <span className="text-xs text-prism-red">{olderError}</span>}
+          {olderError && (
+            <span className="text-xs text-prism-red">{olderError}</span>
+          )}
         </div>
       )}
     </>

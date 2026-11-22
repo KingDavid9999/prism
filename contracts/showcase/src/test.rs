@@ -366,6 +366,7 @@ fn single_value_event_matches_its_declared_type() {
 /// interface-version entry `soroban-sdk` writes into every contract), plus a
 /// marker section so each fixture has its own hash. It exports nothing, so the
 /// tests inspect the upgraded contract's executable instead of calling it.
+#[allow(deprecated)]
 fn fixture_wasm(env: &Env, marker: u8) -> Bytes {
     let protocol = env.ledger().protocol_version().to_be_bytes();
     let mut wasm = Bytes::from_slice(env, b"\0asm\x01\0\0\0");
@@ -398,6 +399,7 @@ fn executable_wasm_hash(env: &Env, contract: &Address) -> Option<[u8; 32]> {
                     ScVal::ContractInstance(instance) => match &instance.executable {
                         ContractExecutable::Wasm(hash) => Some(hash.0),
                         ContractExecutable::StellarAsset => None,
+                        _ => None,
                     },
                     _ => None,
                 }

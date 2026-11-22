@@ -1,23 +1,32 @@
 import { prisma, getBackfillCursor, setBackfillCursor } from "./db.js";
 import { PAGE_LIMIT, processTransaction, server } from "./index.js";
 
-export async function backfill(fromLedger: number, toLedger: number): Promise<void> {
+export async function backfill(
+  fromLedger: number,
+  toLedger: number
+): Promise<void> {
   if (!Number.isSafeInteger(fromLedger) || fromLedger < 1) {
     throw new Error("--from must be a positive ledger number");
   }
   if (!Number.isSafeInteger(toLedger) || toLedger < fromLedger) {
-    throw new Error("--to must be a ledger number greater than or equal to --from");
+    throw new Error(
+      "--to must be a ledger number greater than or equal to --from"
+    );
   }
 
   let state = await getBackfillCursor(fromLedger, toLedger);
   if (state.completed) {
-    console.log(`[backfill] ledger range ${fromLedger}-${toLedger} is already complete`);
+    console.log(
+      `[backfill] ledger range ${fromLedger}-${toLedger} is already complete`
+    );
     return;
   }
 
   while (true) {
     const response = state.paginationCursor
-      ? await server.getTransactions({ pagination: { limit: PAGE_LIMIT, cursor: state.paginationCursor } })
+      ? await server.getTransactions({
+          pagination: { limit: PAGE_LIMIT, cursor: state.paginationCursor },
+        })
       : await server.getTransactions({
           startLedger: Math.max(fromLedger, state.lastLedger + 1),
           pagination: { limit: PAGE_LIMIT },
@@ -42,9 +51,17 @@ export async function backfill(fromLedger: number, toLedger: number): Promise<vo
 
     if (response.transactions.length === PAGE_LIMIT) {
       if (!response.cursor || response.cursor === state.paginationCursor) {
-        throw new Error("RPC returned a full page without advancing its transaction cursor");
+        throw new Error(
+          "RPC returned a full page without advancing its transaction cursor"
+        );
       }
-      await setBackfillCursor(fromLedger, toLedger, lastLedger, response.cursor, false);
+      await setBackfillCursor(
+        fromLedger,
+        toLedger,
+        lastLedger,
+        response.cursor,
+        false
+      );
       state = { ...state, lastLedger, paginationCursor: response.cursor };
       continue;
     }

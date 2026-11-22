@@ -21,7 +21,9 @@ describe("matchEventSpec", () => {
   it("does not match a different prefix or a topic arity mismatch", () => {
     expect(matchEventSpec(["mint", "GABC"], [mapSpec])).toBeUndefined();
     expect(matchEventSpec(["transfer"], [mapSpec])).toBeUndefined();
-    expect(matchEventSpec(["transfer", "GABC", "extra"], [mapSpec])).toBeUndefined();
+    expect(
+      matchEventSpec(["transfer", "GABC", "extra"], [mapSpec])
+    ).toBeUndefined();
   });
 });
 
@@ -35,7 +37,10 @@ describe("labelEventTopics", () => {
   it("uses an empty value when a declared topic is missing", () => {
     const spec: ParsedEventSpec = {
       ...mapSpec,
-      params: [...mapSpec.params, { name: "memo", type: "Symbol", location: "topic" }],
+      params: [
+        ...mapSpec.params,
+        { name: "memo", type: "Symbol", location: "topic" },
+      ],
     };
     expect(labelEventTopics(["transfer", "GABC"], spec)).toEqual([
       { name: "from", type: "Address", value: "GABC" },
@@ -81,7 +86,10 @@ describe("labelEventData", () => {
     expect(
       labelEventData("9", {
         ...spec,
-        params: [...spec.params, { name: "other", type: "u32", location: "data" }],
+        params: [
+          ...spec.params,
+          { name: "other", type: "u32", location: "data" },
+        ],
       })
     ).toBeNull();
   });

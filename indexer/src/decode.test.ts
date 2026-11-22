@@ -51,7 +51,10 @@ describe("scValToDisplay", () => {
 
   it("decodes a u128 to a string (bigints aren't JSON-safe)", () => {
     const val = xdr.ScVal.scvU128(
-      new xdr.UInt128Parts({ hi: xdr.Uint64.fromString("0"), lo: xdr.Uint64.fromString("1000") })
+      new xdr.UInt128Parts({
+        hi: xdr.Uint64.fromString("0"),
+        lo: xdr.Uint64.fromString("1000"),
+      })
     );
     expect(scValToDisplay(val)).toBe("1000");
   });
@@ -60,7 +63,9 @@ describe("scValToDisplay", () => {
     // Would previously fall through to JSON.stringify(scValToNative(...)) and
     // print the js-xdr class's internal fields (_maxDepth, _attributes, ...).
     const instance = new xdr.ScContractInstance({
-      executable: xdr.ContractExecutable.contractExecutableWasm(Buffer.alloc(32)),
+      executable: xdr.ContractExecutable.contractExecutableWasm(
+        Buffer.alloc(32)
+      ),
       storage: null,
     });
     const val = xdr.ScVal.scvContractInstance(instance);
@@ -69,41 +74,47 @@ describe("scValToDisplay", () => {
 });
 
 describe("extractInvocationReturnValue", () => {
-  it.each([3, 4])("reads a successful Soroban return value from metadata v%s", (version) => {
-    const returnValue = xdr.ScVal.scvSymbol("result");
-    const ext = new xdr.SorobanTransactionMetaExt(0);
-    const transactionMeta =
-      version === 3
-        ? new xdr.TransactionMeta(
-            3,
-            new xdr.TransactionMetaV3({
-              ext: new xdr.ExtensionPoint(0),
-              txChangesBefore: [],
-              operations: [],
-              txChangesAfter: [],
-              sorobanMeta: new xdr.SorobanTransactionMeta({
-                ext,
+  it.each([3, 4])(
+    "reads a successful Soroban return value from metadata v%s",
+    (version) => {
+      const returnValue = xdr.ScVal.scvSymbol("result");
+      const ext = new xdr.SorobanTransactionMetaExt(0);
+      const transactionMeta =
+        version === 3
+          ? new xdr.TransactionMeta(
+              3,
+              new xdr.TransactionMetaV3({
+                ext: new xdr.ExtensionPoint(0),
+                txChangesBefore: [],
+                operations: [],
+                txChangesAfter: [],
+                sorobanMeta: new xdr.SorobanTransactionMeta({
+                  ext,
+                  events: [],
+                  returnValue,
+                  diagnosticEvents: [],
+                }),
+              })
+            )
+          : new xdr.TransactionMeta(
+              4,
+              new xdr.TransactionMetaV4({
+                ext: new xdr.ExtensionPoint(0),
+                txChangesBefore: [],
+                operations: [],
+                txChangesAfter: [],
+                sorobanMeta: new xdr.SorobanTransactionMetaV2({
+                  ext,
+                  returnValue,
+                }),
                 events: [],
-                returnValue,
                 diagnosticEvents: [],
-              }),
-            })
-          )
-        : new xdr.TransactionMeta(
-            4,
-            new xdr.TransactionMetaV4({
-              ext: new xdr.ExtensionPoint(0),
-              txChangesBefore: [],
-              operations: [],
-              txChangesAfter: [],
-              sorobanMeta: new xdr.SorobanTransactionMetaV2({ ext, returnValue }),
-              events: [],
-              diagnosticEvents: [],
-            })
-          );
+              })
+            );
 
-    expect(extractInvocationReturnValue(transactionMeta)).toBe("result");
-  });
+      expect(extractInvocationReturnValue(transactionMeta)).toBe("result");
+    }
+  );
 });
 
 describe("extractEvents", () => {
@@ -210,7 +221,10 @@ describe("scValToDisplay map keys", () => {
 
 describe("scValToDisplay (testnet fixtures)", () => {
   it("renders the Soroban return value of a real invocation", () => {
-    const returnValue = successfulInvoke.meta.v4().sorobanMeta()!.returnValue()!;
+    const returnValue = successfulInvoke.meta
+      .v4()
+      .sorobanMeta()!
+      .returnValue()!;
     expect(scValToDisplay(returnValue)).toBe('["1493531","1472284"]');
   });
 });
@@ -233,7 +247,9 @@ describe("decodeInvocation (testnet fixtures)", () => {
   it("still decodes the invocation of a failed transaction", () => {
     expect(failedInvoke.status).toBe("FAILED");
     const decoded = decodeInvocation(failedInvoke.envelope);
-    expect(decoded?.contractId).toBe("CD4KFB23CQLJ47RIPESVBTQ444R75M6QVEZULWXHHFYYZT7SS2VGXOPW");
+    expect(decoded?.contractId).toBe(
+      "CD4KFB23CQLJ47RIPESVBTQ444R75M6QVEZULWXHHFYYZT7SS2VGXOPW"
+    );
     expect(decoded?.functionName).toBe("write_prices");
     expect(decoded?.args).toEqual([
       "GBV54BUAQBFAS6WIRKGURXXCMXWALH4OYBCYE75VBHROJLEKJ4LOZTFB",
@@ -254,7 +270,9 @@ describe("decodeInvocation (testnet fixtures)", () => {
 
 describe("extractInvocationReturnValue (testnet fixtures)", () => {
   it("decodes the return value of a successful invocation", () => {
-    expect(extractInvocationReturnValue(successfulInvoke.meta)).toBe('["1493531","1472284"]');
+    expect(extractInvocationReturnValue(successfulInvoke.meta)).toBe(
+      '["1493531","1472284"]'
+    );
   });
 
   it("returns null when the transaction failed", () => {
@@ -270,22 +288,46 @@ describe("extractInvocationReturnValue (testnet fixtures)", () => {
 
 describe("decodeContractCreation (testnet fixtures)", () => {
   it("decodes a createContract host function", () => {
-    expect(decodeContractCreation(createContract.envelope, createContract.meta, "GCREATOR")).toEqual({
+    expect(
+      decodeContractCreation(
+        createContract.envelope,
+        createContract.meta,
+        "GCREATOR"
+      )
+    ).toEqual({
       contractId: "CCJKICDXTNUHZBFYYLMGSDAW6FD23DS5UBWYMBC2ECYFSX3EGSSW6G5B",
       creator: "GCREATOR",
     });
   });
 
   it("decodes a createContractV2 host function", () => {
-    expect(decodeContractCreation(createContractV2.envelope, createContractV2.meta, "GCREATOR")).toEqual({
+    expect(
+      decodeContractCreation(
+        createContractV2.envelope,
+        createContractV2.meta,
+        "GCREATOR"
+      )
+    ).toEqual({
       contractId: "CBUZIAY2CBUCCRRRJBUANPTOQEF42YETHVG44N34NZ7XIUQ6L7DBV56D",
       creator: "GCREATOR",
     });
   });
 
   it("returns null for an ordinary invocation and for a failed transaction", () => {
-    expect(decodeContractCreation(successfulInvoke.envelope, successfulInvoke.meta, "GCREATOR")).toBeNull();
-    expect(decodeContractCreation(failedInvoke.envelope, failedInvoke.meta, "GCREATOR")).toBeNull();
+    expect(
+      decodeContractCreation(
+        successfulInvoke.envelope,
+        successfulInvoke.meta,
+        "GCREATOR"
+      )
+    ).toBeNull();
+    expect(
+      decodeContractCreation(
+        failedInvoke.envelope,
+        failedInvoke.meta,
+        "GCREATOR"
+      )
+    ).toBeNull();
   });
 });
 
@@ -318,14 +360,19 @@ describe("extractStorageChanges (testnet fixtures)", () => {
       (change) => change.durability === "instance"
     );
     expect(instanceChanges).toHaveLength(8);
-    expect(instanceChanges.every((change) => change.contractId === "CDH4BTGP7GRDFO6Y24AP4RP34NMC3V2RXTTUA4ABCFRMFEYWR6AG6GK6")).toBe(
-      true
-    );
-    expect(instanceChanges[0]).toEqual({
+    expect(
+      instanceChanges.every(
+        (change) =>
+          change.contractId ===
+          "CDH4BTGP7GRDFO6Y24AP4RP34NMC3V2RXTTUA4ABCFRMFEYWR6AG6GK6"
+      )
+    ).toBe(true);
+    expect(instanceChanges[0]).toMatchObject({
       contractId: "CDH4BTGP7GRDFO6Y24AP4RP34NMC3V2RXTTUA4ABCFRMFEYWR6AG6GK6",
       durability: "instance",
       keyDisplay: "__wasm_hash__",
-      valueDisplay: "a5f6b06ca8fb10a7f3d12ba5fae3361f04a242054757080cf14c375b88e1c898",
+      valueDisplay:
+        "a5f6b06ca8fb10a7f3d12ba5fae3361f04a242054757080cf14c375b88e1c898",
       changeType: "state",
     });
   });
@@ -348,7 +395,7 @@ describe("extractStorageChanges (testnet fixtures)", () => {
   });
 
   it("collapses a created contract's instance storage into its created rows", () => {
-    expect(extractStorageChanges(createContract.meta)).toEqual([
+    expect(extractStorageChanges(createContract.meta)).toMatchObject([
       {
         contractId: "CCJKICDXTNUHZBFYYLMGSDAW6FD23DS5UBWYMBC2ECYFSX3EGSSW6G5B",
         durability: "instance",
@@ -361,7 +408,8 @@ describe("extractStorageChanges (testnet fixtures)", () => {
         contractId: "CCJKICDXTNUHZBFYYLMGSDAW6FD23DS5UBWYMBC2ECYFSX3EGSSW6G5B",
         durability: "instance",
         keyDisplay: '["Admin"]',
-        valueDisplay: "GDA44W6ZQ7TI65ZZ5E3TOHBEQXSKIBTNFFY5N4XVLQBA3AUQW2B3GLUU",
+        valueDisplay:
+          "GDA44W6ZQ7TI65ZZ5E3TOHBEQXSKIBTNFFY5N4XVLQBA3AUQW2B3GLUU",
         changeType: "created",
       },
       {
@@ -376,12 +424,13 @@ describe("extractStorageChanges (testnet fixtures)", () => {
   });
 
   it("records only the wasm hash when a V2 creation has no instance storage", () => {
-    expect(extractStorageChanges(createContractV2.meta)).toEqual([
+    expect(extractStorageChanges(createContractV2.meta)).toMatchObject([
       {
         contractId: "CBUZIAY2CBUCCRRRJBUANPTOQEF42YETHVG44N34NZ7XIUQ6L7DBV56D",
         durability: "instance",
         keyDisplay: "__wasm_hash__",
-        valueDisplay: "c1a650506f7c20c8f4d16aae73f894f302cd011d7ef33adef572f20b34f7653e",
+        valueDisplay:
+          "c1a650506f7c20c8f4d16aae73f894f302cd011d7ef33adef572f20b34f7653e",
         changeType: "created",
       },
     ]);

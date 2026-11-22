@@ -7,7 +7,9 @@ import { rateLimitAsync, getClientKey } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-interface Params { params: { hash: string } }
+interface Params {
+  params: { hash: string };
+}
 
 export async function GET(req: Request, { params }: Params) {
   const key = `tx:${getClientKey(req)}`;
@@ -15,7 +17,10 @@ export async function GET(req: Request, { params }: Params) {
   if (!limitResult.success) {
     return NextResponse.json(
       { error: "Rate limit exceeded. Try again shortly." },
-      { status: 429, headers: { "Retry-After": String(limitResult.retryAfter ?? 60) } }
+      {
+        status: 429,
+        headers: { "Retry-After": String(limitResult.retryAfter ?? 60) },
+      }
     );
   }
 
@@ -23,7 +28,10 @@ export async function GET(req: Request, { params }: Params) {
   try {
     tx = await getTransaction(params.hash);
   } catch {
-    return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Transaction not found" },
+      { status: 404 }
+    );
   }
 
   let invocation: ReturnType<typeof decodeInvocation> = null;
@@ -36,7 +44,9 @@ export async function GET(req: Request, { params }: Params) {
     // Envelope uses a newer XDR type this SDK version cannot decode.
     // Return the Horizon fields with envelope-derived fields set to null (#26).
   }
-  const returnValue = invocation ? await getInvocationReturnValue(tx.hash) : null;
+  const returnValue = invocation
+    ? await getInvocationReturnValue(tx.hash)
+    : null;
 
   return NextResponse.json({ ...tx, invocation, resources, returnValue });
 }

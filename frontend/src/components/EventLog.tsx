@@ -2,7 +2,11 @@ import Link from "next/link";
 import type { ContractEvent, ContractEventSpec } from "@/types";
 import { shortHash } from "@/lib/format";
 import { linkifyAddresses } from "@/lib/linkify";
-import { labelEventData, labelEventTopics, matchEventSpec } from "@/lib/event-spec";
+import {
+  labelEventData,
+  labelEventTopics,
+  matchEventSpec,
+} from "@/lib/event-spec";
 import RelativeTime from "@/components/RelativeTime";
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
@@ -50,7 +54,10 @@ export default function EventLog({
         const data = spec ? labelEventData(e.value, spec) : null;
 
         return (
-          <div key={e.id} className="rounded-lg border border-prism-border bg-prism-surface p-4">
+          <div
+            key={e.id}
+            className="rounded-lg border border-prism-border bg-prism-surface p-4"
+          >
             <div className="flex justify-between mb-2 gap-3">
               <div className="flex items-center gap-2 flex-wrap min-w-0">
                 {spec ? (
@@ -81,36 +88,35 @@ export default function EventLog({
               )}
             </div>
 
-            {spec ? (
-              labelled.length > 0 && (
-                <dl className="mb-1 space-y-0.5">
-                  {labelled.map((field) => (
-                    <div key={field.name} className="flex gap-2 text-xs">
-                      <dt className="text-prism-muted shrink-0">
-                        {field.name}
-                        <span className="opacity-60"> ({field.type})</span>
-                      </dt>
-                      <dd className="font-mono text-prism-strong break-all">{field.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )
-            ) : (
-              e.topic.length > 0 && (
-                <p className="text-xs text-prism-muted mb-1">
-                  Topic:{" "}
-                  <span className="font-mono text-prism-strong">
-                    {e.topic.map((topic, i) => (
-                      <span key={i}>
-                        {i > 0 && ", "}
-                        {linkifyAddresses(topic)}
-                        {e.topicTypes?.[i] && <span className="opacity-60"> ({e.topicTypes[i]})</span>}
-                      </span>
+            {spec
+              ? labelled.length > 0 && (
+                  <dl className="mb-1 space-y-0.5">
+                    {labelled.map((field) => (
+                      <div key={field.name} className="flex gap-2 text-xs">
+                        <dt className="text-prism-muted shrink-0">
+                          {field.name}
+                          <span className="opacity-60"> ({field.type})</span>
+                        </dt>
+                        <dd className="font-mono text-prism-strong break-all">
+                          {field.value}
+                        </dd>
+                      </div>
                     ))}
-                  </span>
-                </p>
-              )
-            )}
+                  </dl>
+                )
+              : e.topic.length > 0 && (
+                  <p className="text-xs text-prism-muted mb-1">
+                    Topic:{" "}
+                    <span className="font-mono text-prism-strong">
+                      {e.topic.map((topic, i) => (
+                        <span key={i}>
+                          {i > 0 && ", "}
+                          {linkifyAddresses(topic)}
+                        </span>
+                      ))}
+                    </span>
+                  </p>
+                )}
 
             {data ? (
               <dl className="space-y-0.5">
@@ -120,14 +126,15 @@ export default function EventLog({
                       {field.name}
                       <span className="opacity-60"> ({field.type})</span>
                     </dt>
-                    <dd className="font-mono text-prism-strong break-all">{field.value}</dd>
+                    <dd className="font-mono text-prism-strong break-all">
+                      {field.value}
+                    </dd>
                   </div>
                 ))}
               </dl>
             ) : (
               <p className="text-xs font-mono text-prism-muted break-all">
                 {linkifyAddresses(e.value)}
-                {e.valueType && <span className="opacity-60"> ({e.valueType})</span>}
               </p>
             )}
           </div>

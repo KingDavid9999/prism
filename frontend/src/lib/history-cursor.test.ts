@@ -17,7 +17,9 @@ describe("parsePageRequest", () => {
   });
 
   it("clamps the limit to the page size range", () => {
-    expect(parsePageRequest(url("?limit=100000"), 50)).toEqual({ limit: MAX_PAGE_SIZE });
+    expect(parsePageRequest(url("?limit=100000"), 50)).toEqual({
+      limit: MAX_PAGE_SIZE,
+    });
     expect(parsePageRequest(url("?limit=0"), 50)).toEqual({ limit: 1 });
     expect(parsePageRequest(url("?limit=-5"), 50)).toEqual({ limit: 1 });
   });
@@ -28,14 +30,27 @@ describe("parsePageRequest", () => {
 
   it("reads a cursor that encodeCursor produced", () => {
     const cursor = { ledger: 4064026, id: "ckx9z0abc" };
-    const request = parsePageRequest(url(`?cursor=${encodeCursor(cursor)}`), 50);
+    const request = parsePageRequest(
+      url(`?cursor=${encodeCursor(cursor)}`),
+      50
+    );
     expect(request).toEqual({ limit: 50, before: cursor });
   });
 
   it("rejects a cursor it did not produce", () => {
     expect(parsePageRequest(url("?cursor=not-a-cursor"), 50)).toBeNull();
-    expect(parsePageRequest(url(`?cursor=${Buffer.from('{"a":1}').toString("base64url")}`), 50)).toBeNull();
-    expect(parsePageRequest(url(`?cursor=${Buffer.from('[1.5,"x"]').toString("base64url")}`), 50)).toBeNull();
+    expect(
+      parsePageRequest(
+        url(`?cursor=${Buffer.from('{"a":1}').toString("base64url")}`),
+        50
+      )
+    ).toBeNull();
+    expect(
+      parsePageRequest(
+        url(`?cursor=${Buffer.from('[1.5,"x"]').toString("base64url")}`),
+        50
+      )
+    ).toBeNull();
   });
 });
 
@@ -70,7 +85,11 @@ describe("paging a history with a keyset cursor", () => {
 
   function queryAfter(before: HistoryCursor | undefined, limit: number) {
     const eligible = before
-      ? ordered.filter((r) => r.ledger < before.ledger || (r.ledger === before.ledger && r.id < before.id))
+      ? ordered.filter(
+          (r) =>
+            r.ledger < before.ledger ||
+            (r.ledger === before.ledger && r.id < before.id)
+        )
       : ordered;
     return eligible.slice(0, limit + 1);
   }
@@ -79,10 +98,16 @@ describe("paging a history with a keyset cursor", () => {
     const seen: HistoryCursor[] = [];
     let request = parsePageRequest(url("?limit=25"), 50);
     while (request) {
-      const page = takePage(queryAfter(request.before, request.limit), request.limit);
+      const page = takePage(
+        queryAfter(request.before, request.limit),
+        request.limit
+      );
       seen.push(...page.rows);
       if (!page.nextCursor) break;
-      request = parsePageRequest(url(`?limit=25&cursor=${page.nextCursor}`), 50);
+      request = parsePageRequest(
+        url(`?limit=25&cursor=${page.nextCursor}`),
+        50
+      );
     }
 
     expect(seen).toHaveLength(120);

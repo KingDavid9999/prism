@@ -82,7 +82,9 @@ describe("getContractInfo", () => {
   });
 
   it("returns null when the RPC request fails", async () => {
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockRejectedValue(new Error("RPC down"));
+    vi.spyOn(rpc.Server.prototype, "getContractData").mockRejectedValue(
+      new Error("RPC down")
+    );
     await expect(getContractInfo("contract-id")).resolves.toBeNull();
   });
 
@@ -116,13 +118,15 @@ describe("getContractInfo", () => {
 });
 
 describe("storage TTL state", () => {
-  const indexedEntry = (overrides: Partial<{
-    keyDisplay: string;
-    valueDisplay: string;
-    durability: string;
-    ledger: number;
-    liveUntilLedger: number | null;
-  }> = {}) => ({
+  const indexedEntry = (
+    overrides: Partial<{
+      keyDisplay: string;
+      valueDisplay: string;
+      durability: string;
+      ledger: number;
+      liveUntilLedger: number | null;
+    }> = {}
+  ) => ({
     keyDisplay: "session",
     valueDisplay: "7",
     durability: "temporary",
@@ -135,13 +139,32 @@ describe("storage TTL state", () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(true);
     vi.mocked(getIndexedStorageEntries).mockResolvedValue([
       indexedEntry(),
-      indexedEntry({ keyDisplay: "counter", durability: "persistent", valueDisplay: "3", liveUntilLedger: 200 }),
+      indexedEntry({
+        keyDisplay: "counter",
+        durability: "persistent",
+        valueDisplay: "3",
+        liveUntilLedger: 200,
+      }),
     ]);
-    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({ sequence: 100 } as never);
+    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({
+      sequence: 100,
+    } as never);
 
     await expect(getFullStorageEntries("contract-id")).resolves.toEqual([
-      { key: "session", value: "7", durability: "temporary", liveUntilLedgerSeq: 90, state: "expired" },
-      { key: "counter", value: "3", durability: "persistent", liveUntilLedgerSeq: 200, state: "live" },
+      {
+        key: "session",
+        value: "7",
+        durability: "temporary",
+        liveUntilLedgerSeq: 90,
+        state: "expired",
+      },
+      {
+        key: "counter",
+        value: "3",
+        durability: "persistent",
+        liveUntilLedgerSeq: 200,
+        state: "live",
+      },
     ]);
   });
 
@@ -150,44 +173,80 @@ describe("storage TTL state", () => {
     vi.mocked(getIndexedStorageEntries).mockResolvedValue([
       indexedEntry({ durability: "persistent", liveUntilLedger: 50 }),
     ]);
-    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({ sequence: 100 } as never);
+    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({
+      sequence: 100,
+    } as never);
 
     await expect(getFullStorageEntries("contract-id")).resolves.toEqual([
-      { key: "session", value: "7", durability: "persistent", liveUntilLedgerSeq: 50, state: "archived" },
+      {
+        key: "session",
+        value: "7",
+        durability: "persistent",
+        liveUntilLedgerSeq: 50,
+        state: "archived",
+      },
     ]);
   });
 
   it("labels a live RPC lookup with its TTL", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(false);
     vi.spyOn(rpc.Server.prototype, "getContractData").mockResolvedValue({
-      val: { contractData: () => ({ val: () => nativeToScVal(7, { type: "u32" }) }) },
+      val: {
+        contractData: () => ({ val: () => nativeToScVal(7, { type: "u32" }) }),
+      },
       liveUntilLedgerSeq: 200,
     } as never);
-    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({ sequence: 100 } as never);
+    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({
+      sequence: 100,
+    } as never);
 
     await expect(
-      lookupStorageEntry("contract-id", nativeToScVal("session", { type: "symbol" }), "temporary")
-    ).resolves.toMatchObject({ key: "session", liveUntilLedgerSeq: 200, state: "live" });
+      lookupStorageEntry(
+        "contract-id",
+        nativeToScVal("session", { type: "symbol" }),
+        "temporary"
+      )
+    ).resolves.toMatchObject({
+      key: "session",
+      liveUntilLedgerSeq: 200,
+      state: "live",
+    });
   });
 
   it("reports an evicted temporary key as expired instead of missing", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(true);
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockRejectedValue(new Error("not found"));
-    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({ sequence: 100 } as never);
+    vi.spyOn(rpc.Server.prototype, "getContractData").mockRejectedValue(
+      new Error("not found")
+    );
+    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({
+      sequence: 100,
+    } as never);
     vi.mocked(getIndexedStorageEntries).mockResolvedValue([indexedEntry()]);
 
     await expect(
-      lookupStorageEntry("contract-id", nativeToScVal("session", { type: "symbol" }), "temporary")
-    ).resolves.toMatchObject({ key: "session", liveUntilLedgerSeq: 90, state: "expired" });
+      lookupStorageEntry(
+        "contract-id",
+        nativeToScVal("session", { type: "symbol" }),
+        "temporary"
+      )
+    ).resolves.toMatchObject({
+      key: "session",
+      liveUntilLedgerSeq: 90,
+      state: "expired",
+    });
   });
 });
 
 describe("getInvocationReturnValue", () => {
   it("uses the persisted return value without querying pruned RPC history", async () => {
-    vi.mocked(getIndexedInvocationReturnValue).mockResolvedValue("stored result");
+    vi.mocked(getIndexedInvocationReturnValue).mockResolvedValue(
+      "stored result"
+    );
     const getTransaction = vi.spyOn(rpc.Server.prototype, "getTransaction");
 
-    await expect(getInvocationReturnValue("tx-hash")).resolves.toBe("stored result");
+    await expect(getInvocationReturnValue("tx-hash")).resolves.toBe(
+      "stored result"
+    );
     expect(getTransaction).not.toHaveBeenCalled();
   });
 });
@@ -229,9 +288,14 @@ describe("getContractEvents", () => {
 
   it("returns a cursor for the next page when the indexer has more events", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(true);
-    vi.mocked(getIndexedEvents).mockResolvedValue({ items: [], nextCursor: "next-page" });
+    vi.mocked(getIndexedEvents).mockResolvedValue({
+      items: [],
+      nextCursor: "next-page",
+    });
 
-    await expect(getContractEventsPage("contract-id", { limit: 2 })).resolves.toEqual({
+    await expect(
+      getContractEventsPage("contract-id", { limit: 2 })
+    ).resolves.toEqual({
       items: [],
       nextCursor: "next-page",
       error: null,
@@ -243,7 +307,10 @@ describe("getContractEvents", () => {
     const rpcSpy = vi.spyOn(rpc.Server.prototype, "getLatestLedger");
 
     await expect(
-      getContractEventsPage("contract-id", { limit: 2, before: { ledger: 5, id: "row" } })
+      getContractEventsPage("contract-id", {
+        limit: 2,
+        before: { ledger: 5, id: "row" },
+      })
     ).resolves.toEqual({ items: [], nextCursor: null, error: null });
     expect(rpcSpy).not.toHaveBeenCalled();
   });
@@ -271,17 +338,27 @@ describe("getContractEvents", () => {
 
   it("keeps an RPC failure separate from a genuinely empty result", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(false);
-    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockRejectedValue(new Error("RPC down"));
+    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockRejectedValue(
+      new Error("RPC down")
+    );
 
-    await expect(getContractEventsPage("contract-id", { limit: 2 })).resolves.toEqual({
+    await expect(
+      getContractEventsPage("contract-id", { limit: 2 })
+    ).resolves.toEqual({
       items: [],
       nextCursor: null,
       error: "RPC down",
     });
 
-    vi.mocked(rpc.Server.prototype.getLatestLedger).mockResolvedValue({ sequence: 10 } as never);
-    vi.spyOn(rpc.Server.prototype, "getEvents").mockResolvedValue({ events: [] } as never);
-    await expect(getContractEventsPage("contract-id", { limit: 2 })).resolves.toEqual({
+    vi.mocked(rpc.Server.prototype.getLatestLedger).mockResolvedValue({
+      sequence: 10,
+    } as never);
+    vi.spyOn(rpc.Server.prototype, "getEvents").mockResolvedValue({
+      events: [],
+    } as never);
+    await expect(
+      getContractEventsPage("contract-id", { limit: 2 })
+    ).resolves.toEqual({
       items: [],
       nextCursor: null,
       error: null,
@@ -290,11 +367,17 @@ describe("getContractEvents", () => {
 
   it("returns an empty list when the RPC call fails or returns no events", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(false);
-    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockRejectedValue(new Error("RPC down"));
+    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockRejectedValue(
+      new Error("RPC down")
+    );
     await expect(getContractEvents("contract-id")).resolves.toEqual([]);
 
-    vi.mocked(rpc.Server.prototype.getLatestLedger).mockResolvedValue({ sequence: 10 } as never);
-    vi.spyOn(rpc.Server.prototype, "getEvents").mockResolvedValue({ events: [] } as never);
+    vi.mocked(rpc.Server.prototype.getLatestLedger).mockResolvedValue({
+      sequence: 10,
+    } as never);
+    vi.spyOn(rpc.Server.prototype, "getEvents").mockResolvedValue({
+      events: [],
+    } as never);
     await expect(getContractEvents("contract-id")).resolves.toEqual([]);
   });
 });
@@ -328,7 +411,9 @@ describe("getInvocationHistory", () => {
         successful: true,
       },
     ]);
-    expect(getIndexedInvocations).toHaveBeenCalledWith("contract-id", { limit: 2 });
+    expect(getIndexedInvocations).toHaveBeenCalledWith("contract-id", {
+      limit: 2,
+    });
     expect(rpcSpy).not.toHaveBeenCalled();
   });
 

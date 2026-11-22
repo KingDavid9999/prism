@@ -34,7 +34,8 @@ export function describeContractError(
   for (const def of types) {
     if (def.kind !== "error") continue;
     const found = def.cases.find((c) => c.value === code);
-    if (found) return { name: `${def.name}::${found.name}`, code, doc: def.doc };
+    if (found)
+      return { name: `${def.name}::${found.name}`, code, doc: def.doc };
   }
   return null;
 }

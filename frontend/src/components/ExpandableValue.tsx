@@ -22,7 +22,8 @@ interface Props {
 export default function ExpandableValue({ value, valueType, previewLength = 96 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const isLong = value.length > previewLength;
-  const shown = isLong && !expanded ? `${value.slice(0, previewLength)}...` : value;
+  const shown =
+    isLong && !expanded ? `${value.slice(0, previewLength)}...` : value;
 
   return (
     <div className="flex items-start gap-2">

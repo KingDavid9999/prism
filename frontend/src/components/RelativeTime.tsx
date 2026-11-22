@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { formatTimestampUtc, timeAgo } from "@/lib/format";
 
-interface Props { iso: string }
+interface Props {
+  iso: string;
+}
 
 /**
  * An absolute UTC timestamp, with the time elapsed since then added once the

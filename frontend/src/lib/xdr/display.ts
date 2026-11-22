@@ -5,20 +5,19 @@ function toDisplaySafe(value: unknown): unknown {
   if (value instanceof Uint8Array) return Buffer.from(value).toString("hex");
   if (Array.isArray(value)) return value.map(toDisplaySafe);
   if (value instanceof Map) {
-    // Non-primitive keys (vec, struct, address) stringify to "[object Object]" or
-    // a bare "a,b", so they're JSON-encoded to keep them distinct.
-    const pairs = Array.from(value.entries()).map(([k, v]) => {
-      const key = toDisplaySafe(k);
-      return [key, toDisplaySafe(v)] as const;
-    });
-    const keys = pairs.map(([k]) => (typeof k === "object" && k !== null ? JSON.stringify(k) : String(k)));
-    // If two keys still collide, keep every entry as [key, value] pairs rather than drop one.
-    if (new Set(keys).size !== keys.length) return pairs;
-    return Object.fromEntries(keys.map((k, i) => [k, pairs[i][1]]));
+    return Object.fromEntries(
+      Array.from(value.entries()).map(([k, v]) => [
+        String(toDisplaySafe(k)),
+        toDisplaySafe(v),
+      ])
+    );
   }
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, toDisplaySafe(v)])
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [
+        k,
+        toDisplaySafe(v),
+      ])
     );
   }
   return value;

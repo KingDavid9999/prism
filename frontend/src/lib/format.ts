@@ -17,7 +17,10 @@ export function shortHash(hash: string, chars = 6): string {
  */
 export function balanceLabel(balance: AccountBalance): string {
   if (balance.assetType === "native") return "XLM";
-  if (balance.assetType === "liquidity_pool_shares" && balance.liquidityPoolId) {
+  if (
+    balance.assetType === "liquidity_pool_shares" &&
+    balance.liquidityPoolId
+  ) {
     return `Pool ${shortHash(balance.liquidityPoolId, 6)}`;
   }
   if (balance.assetCode) {
@@ -42,7 +45,8 @@ export function formatFee(stroops: number): string {
  * decoder already shows them as hex, so do the same here.
  */
 function base64ToHex(value: string): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let hex = "";
   let bits = 0;
   let byte = 0;

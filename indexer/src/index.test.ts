@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { backoffDelay, commitPage, healthReport, pruneStorageHistory, seedLastLedger } from "./index.js";
+import {
+  backoffDelay,
+  commitPage,
+  healthReport,
+  pruneStorageHistory,
+  seedLastLedger,
+} from "./index.js";
 
 describe("backoffDelay", () => {
   it("doubles the delay for each consecutive failure", () => {
@@ -30,16 +36,27 @@ describe("healthReport", () => {
   });
 
   it("is unhealthy when the lag passes the threshold", () => {
-    expect(healthReport({ ...base, latestLedger: 161 }, 60)).toMatchObject({ healthy: false, lag: 61 });
-    expect(healthReport({ ...base, latestLedger: 160 }, 60)).toMatchObject({ healthy: true, lag: 60 });
+    expect(healthReport({ ...base, latestLedger: 161 }, 60)).toMatchObject({
+      healthy: false,
+      lag: 61,
+    });
+    expect(healthReport({ ...base, latestLedger: 160 }, 60)).toMatchObject({
+      healthy: true,
+      lag: 60,
+    });
   });
 
   it("is unhealthy when the last poll failed", () => {
-    expect(healthReport({ ...base, lastPollFailed: true }, 60)).toMatchObject({ healthy: false });
+    expect(healthReport({ ...base, lastPollFailed: true }, 60)).toMatchObject({
+      healthy: false,
+    });
   });
 
   it("never reports a negative lag", () => {
-    expect(healthReport({ ...base, latestLedger: 90 }, 60)).toMatchObject({ healthy: true, lag: 0 });
+    expect(healthReport({ ...base, latestLedger: 90 }, 60)).toMatchObject({
+      healthy: true,
+      lag: 0,
+    });
   });
 });
 
@@ -87,7 +104,10 @@ describe("commitPage", () => {
     };
     const client = {
       $transaction: async (fn: (db: unknown) => Promise<void>) => {
-        const staged = { gaps: [] as unknown[], cursor: undefined as undefined | typeof committed.cursor };
+        const staged = {
+          gaps: [] as unknown[],
+          cursor: undefined as undefined | typeof committed.cursor,
+        };
         const db = {
           indexerGap: {
             create: async ({ data }: { data: unknown }) => {
@@ -96,7 +116,8 @@ describe("commitPage", () => {
           },
           indexerCursor: {
             upsert: async ({ update }: { update: typeof committed.cursor }) => {
-              if (failOn === "indexerCursor") throw new Error("injected failure");
+              if (failOn === "indexerCursor")
+                throw new Error("injected failure");
               staged.cursor = update;
             },
           },
@@ -112,9 +133,16 @@ describe("commitPage", () => {
   it("applies the gap record and the cursor together", async () => {
     const { client, committed } = fakeClient();
     const gap = { fromLedger: 101, toLedger: 300, reason: "RPC retention" };
-    await commitPage([], { lastLedger: 300, paginationCursor: null, gap }, client);
+    await commitPage(
+      [],
+      { lastLedger: 300, paginationCursor: null, gap },
+      client
+    );
     expect(committed.gaps).toEqual([gap]);
-    expect(committed.cursor).toEqual({ lastLedger: 300, paginationCursor: null });
+    expect(committed.cursor).toEqual({
+      lastLedger: 300,
+      paginationCursor: null,
+    });
   });
 
   it("leaves no new rows and an unchanged cursor when a failure follows the inserts", async () => {
@@ -124,27 +152,38 @@ describe("commitPage", () => {
       commitPage([], { lastLedger: 300, paginationCursor: null, gap }, client)
     ).rejects.toThrow("injected failure");
     expect(committed.gaps).toEqual([]);
-    expect(committed.cursor).toEqual({ lastLedger: 100, paginationCursor: null });
+    expect(committed.cursor).toEqual({
+      lastLedger: 100,
+      paginationCursor: null,
+    });
   });
 });
 
-
 describe("pruneStorageHistory", () => {
   it("does not prune before the retention window has elapsed", async () => {
-    const execute = async () => { throw new Error("should not query"); };
-    const client = { $executeRaw: execute } as unknown as Parameters<typeof pruneStorageHistory>[2];
+    const execute = async () => {
+      throw new Error("should not query");
+    };
+    const client = { $executeRaw: execute } as unknown as Parameters<
+      typeof pruneStorageHistory
+    >[2];
     await expect(pruneStorageHistory(50, 100, client)).resolves.toBe(0);
   });
 
   it("uses a bounded deletion that excludes the latest observation for each key", async () => {
     let statement = "";
     let cutoff: unknown;
-    const execute = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const execute = async (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => {
       statement = strings.join("?");
       cutoff = values[0];
       return 7;
     };
-    const client = { $executeRaw: execute } as unknown as Parameters<typeof pruneStorageHistory>[2];
+    const client = { $executeRaw: execute } as unknown as Parameters<
+      typeof pruneStorageHistory
+    >[2];
     await expect(pruneStorageHistory(200, 50, client)).resolves.toBe(7);
     expect(cutoff).toBe(150);
     expect(statement).toContain("LIMIT 1000");

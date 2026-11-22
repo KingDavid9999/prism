@@ -24,7 +24,12 @@ export async function lookupStorageKeyAction(
   try {
     const key = parseStorageKeyInput(rawKey.trim(), kind, types);
     const entry = await lookupStorageEntry(contractId, key, durability);
-    return entry ?? { error: "No entry found — check the key type/durability, or it may not exist." };
+    return (
+      entry ?? {
+        error:
+          "No entry found — check the key type/durability, or it may not exist.",
+      }
+    );
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Invalid key." };
   }
@@ -37,10 +42,14 @@ export async function lookupStorageKeyAction(
  */
 const XDR_INPUT_LIMIT = 64 * 1024; // 64 KB of base64
 
-export async function decodeXdrAction(input: string): Promise<XdrDecodeResult | { error: string }> {
+export async function decodeXdrAction(
+  input: string
+): Promise<XdrDecodeResult | { error: string }> {
   if (!input.trim()) return { error: "Paste some base64 XDR to decode." };
   if (input.length > XDR_INPUT_LIMIT) {
-    return { error: `Input too large — maximum is ${XDR_INPUT_LIMIT / 1024} KB of base64.` };
+    return {
+      error: `Input too large — maximum is ${XDR_INPUT_LIMIT / 1024} KB of base64.`,
+    };
   }
   const result = decodeAnyXdr(input);
   return (
@@ -65,6 +74,9 @@ export async function simulateInvocationAction(
     const scArgs = args.map((a) => coerceArgInput(a.value, a.type, types));
     return await simulateInvocation(contractId, functionName, scArgs);
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Invalid arguments." };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Invalid arguments.",
+    };
   }
 }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { classifyStorageEntry, storageStateLabel, withStorageState } from "./storage-state";
+import {
+  classifyStorageEntry,
+  storageStateLabel,
+  withStorageState,
+} from "./storage-state";
 
 describe("classifyStorageEntry", () => {
   it("treats an entry whose TTL is still in the future as live", () => {
@@ -25,7 +29,9 @@ describe("classifyStorageEntry", () => {
 describe("storageStateLabel", () => {
   it("spells out the restore-versus-gone difference", () => {
     expect(storageStateLabel("expired")).toBe("expired (temporary — deleted)");
-    expect(storageStateLabel("archived")).toBe("archived (persistent — restorable)");
+    expect(storageStateLabel("archived")).toBe(
+      "archived (persistent — restorable)"
+    );
     expect(storageStateLabel("live")).toBe("live");
   });
 });
@@ -34,7 +40,12 @@ describe("withStorageState", () => {
   it("keeps every field and adds the computed state", () => {
     expect(
       withStorageState(
-        { key: "session", value: "7", durability: "temporary", liveUntilLedgerSeq: 90 },
+        {
+          key: "session",
+          value: "7",
+          durability: "temporary",
+          liveUntilLedgerSeq: 90,
+        },
         100
       )
     ).toEqual({

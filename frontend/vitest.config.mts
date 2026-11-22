@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import path from "node:path";
 
 export default defineConfig({
@@ -7,6 +7,7 @@ export default defineConfig({
   oxc: { jsx: "automatic" },
   test: {
     environment: "node",
+    exclude: [...configDefaults.exclude, "e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "text-summary", "lcov", "json-summary"],

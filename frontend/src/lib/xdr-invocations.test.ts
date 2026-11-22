@@ -17,7 +17,10 @@ const secondContract = StrKey.encodeContract(Buffer.alloc(32, 2));
 
 function envelopeWith(...operations: xdr.Operation[]): xdr.TransactionEnvelope {
   const source = new Account(Keypair.random().publicKey(), "1");
-  const builder = new TransactionBuilder(source, { fee: "100", networkPassphrase: Networks.TESTNET });
+  const builder = new TransactionBuilder(source, {
+    fee: "100",
+    networkPassphrase: Networks.TESTNET,
+  });
   for (const op of operations) builder.addOperation(op);
   return builder.setTimeout(30).build().toEnvelope();
 }
@@ -30,8 +33,18 @@ describe("decodeInvocations", () => {
     );
 
     expect(decodeInvocations(envelope)).toEqual([
-      { operationIndex: 0, contractId: firstContract, functionName: "transfer", args: [] },
-      { operationIndex: 1, contractId: secondContract, functionName: "mint", args: [] },
+      {
+        operationIndex: 0,
+        contractId: firstContract,
+        functionName: "transfer",
+        args: [],
+      },
+      {
+        operationIndex: 1,
+        contractId: secondContract,
+        functionName: "mint",
+        args: [],
+      },
     ]);
   });
 
@@ -46,7 +59,12 @@ describe("decodeInvocations", () => {
     );
 
     expect(decodeInvocations(envelope)).toEqual([
-      { operationIndex: 1, contractId: secondContract, functionName: "mint", args: [] },
+      {
+        operationIndex: 1,
+        contractId: secondContract,
+        functionName: "mint",
+        args: [],
+      },
     ]);
   });
 
