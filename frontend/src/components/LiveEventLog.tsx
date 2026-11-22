@@ -5,6 +5,7 @@ import EventLog from "./EventLog";
 import SectionHeader from "./SectionHeader";
 import { appendUnique, mergeVisible } from "@/lib/list-pagination";
 import { startVisibilityPolling } from "@/lib/visibility-poll";
+import { createPollBackoff, pollJson } from "@/lib/poll-backoff";
 import type { ContractEvent, ContractEventSpec } from "@/types";
 
 interface Props {
@@ -47,22 +48,26 @@ export default function LiveEventLog({
   const events = mergeVisible(firstPage, olderEvents, (event) => event.id);
 
   useEffect(() => {
+    const backoff = createPollBackoff(intervalMs);
     return startVisibilityPolling({
       intervalMs,
       refresh: async () => {
-        try {
-          const res = await fetch(`/api/contract/${contractId}/events`);
-          const data = await res.json();
-          if (!res.ok || data.error) {
-            setError(data.error ?? "The RPC node rejected the request.");
-            return;
-          }
-          setFirstPage(data.events);
-          setNextCursor(data.nextCursor ?? null);
-          setError(null);
-        } catch {
-          setError("The events API could not be reached.");
+        const result = await pollJson<{
+          events: ContractEvent[];
+          nextCursor?: string | null;
+        }>(`/api/contract/${contractId}/events`, backoff);
+        if (!result.ok) {
+          setError(
+            result.body?.error ??
+              (result.status === null
+                ? "The events API could not be reached."
+                : "The RPC node rejected the request.")
+          );
+          return result.pauseMs;
         }
+        setFirstPage(result.data.events);
+        setNextCursor(result.data.nextCursor ?? null);
+        setError(null);
       },
     });
   }, [contractId, intervalMs]);

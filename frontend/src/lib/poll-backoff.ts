@@ -46,3 +46,45 @@ export function createPollBackoff(intervalMs: number): PollBackoff {
     },
   };
 }
+
+export type PollResult<T> =
+  | { ok: true; data: T }
+  | {
+      ok: false;
+      /** HTTP status, or null when no response arrived (network error). */
+      status: number | null;
+      /** The parsed JSON body when there was one. */
+      body: { error?: string } | null;
+      /** How long the poller should wait before its next request. */
+      pauseMs: number;
+    };
+
+/**
+ * GET a JSON endpoint for a live list. A failure reports the pause the poller
+ * should take next, honoring the response's Retry-After when it has one.
+ */
+export async function pollJson<T>(
+  url: string,
+  backoff: PollBackoff
+): Promise<PollResult<T>> {
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch {
+    return { ok: false, status: null, body: null, pauseMs: backoff.failed() };
+  }
+  // Read the status before the body so a non-JSON 429 still honors Retry-After.
+  const body = (await res.json().catch(() => null)) as {
+    error?: string;
+  } | null;
+  if (!res.ok || body === null) {
+    return {
+      ok: false,
+      status: res.status,
+      body,
+      pauseMs: backoff.failed(res),
+    };
+  }
+  backoff.succeeded();
+  return { ok: true, data: body as T };
+}
