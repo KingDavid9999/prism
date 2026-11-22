@@ -31,6 +31,16 @@ interface SimulateBody {
   types?: ContractTypeDef[];
 }
 
+/** An argument needs a string `value`; `type` is optional, but a string when given. */
+function isArgShape(arg: unknown): arg is { value: string; type?: string } {
+  if (typeof arg !== "object" || arg === null) return false;
+  const { value, type } = arg as Record<string, unknown>;
+  return (
+    typeof value === "string" &&
+    (type === undefined || typeof type === "string")
+  );
+}
+
 /**
  * Read the request body, giving up as soon as it passes `maxBytes` so an
  * oversized body is never buffered in full. Returns null when it is too large.
@@ -129,6 +139,16 @@ export async function POST(req: Request, { params }: Params) {
   if (!Array.isArray(args)) {
     return NextResponse.json(
       { error: "args must be an array" },
+      { status: 400 }
+    );
+  }
+
+  const badIndex = (args as unknown[]).findIndex((a) => !isArgShape(a));
+  if (badIndex !== -1) {
+    return NextResponse.json(
+      {
+        error: `args[${badIndex}] must be { value: string, type?: string }`,
+      },
       { status: 400 }
     );
   }
