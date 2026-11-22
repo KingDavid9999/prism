@@ -10,6 +10,7 @@ import {
   type SimulationResult,
 } from "./soroban";
 import { rateLimitAction } from "./rate-limit";
+import { simulateInputError } from "./simulate-limits";
 import type { ContractTypeDef, StorageEntry } from "@/types";
 
 // Server actions are public POST endpoints, so each one is rate-limited like
@@ -89,6 +90,8 @@ export async function simulateInvocationAction(
   });
   if (limited) return { success: false, error: limited };
   try {
+    const tooLarge = simulateInputError(args, types);
+    if (tooLarge) return { success: false, error: tooLarge };
     const scArgs = args.map((a) => coerceArgInput(a.value, a.type, types));
     return await simulateInvocation(contractId, functionName, scArgs);
   } catch (err) {

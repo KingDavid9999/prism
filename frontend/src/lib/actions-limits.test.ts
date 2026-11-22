@@ -22,6 +22,8 @@ import {
   simulateInvocationAction,
 } from "./actions";
 import { simulateInvocation } from "./soroban";
+import { coerceArgInput } from "./xdr";
+import type { ContractTypeDef } from "@/types";
 
 const CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
 
@@ -97,5 +99,81 @@ describe("server actions are rate-limited (#227)", () => {
     useClient("203.0.113.14");
     const other = await simulateInvocationAction(CONTRACT_ID, "bump", []);
     expect(other.success).toBe(true);
+  });
+});
+
+// Issue #228 — the action takes the same input limits as the /simulate route.
+describe("simulateInvocationAction caps its inputs (#228)", () => {
+  const withArgs = (count: number) =>
+    Array.from({ length: count }, () => ({ value: "1", type: "u32" }));
+
+  it("rejects 1,000 arguments without coercing them or calling RPC", async () => {
+    useClient("203.0.113.20");
+    const result = await simulateInvocationAction(
+      CONTRACT_ID,
+      "bump",
+      withArgs(1000)
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/at most 32 arguments/);
+    expect(coerceArgInput).not.toHaveBeenCalled();
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
+
+  it("accepts the maximum of 32 arguments", async () => {
+    useClient("203.0.113.21");
+    const result = await simulateInvocationAction(
+      CONTRACT_ID,
+      "bump",
+      withArgs(32)
+    );
+
+    expect(result.success).toBe(true);
+    expect(simulateInvocation).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects one argument value over 16 KB", async () => {
+    useClient("203.0.113.22");
+    const huge = "a".repeat(16 * 1024 + 1);
+    const result = await simulateInvocationAction(CONTRACT_ID, "bump", [
+      { value: huge, type: "string" },
+    ]);
+
+    expect(result.error).toMatch(/args\[0\] is larger than 16 KB/);
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
+
+  it("accepts an argument value of exactly 16 KB", async () => {
+    useClient("203.0.113.23");
+    const exact = "a".repeat(16 * 1024);
+    const result = await simulateInvocationAction(CONTRACT_ID, "bump", [
+      { value: exact, type: "string" },
+    ]);
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a types array over 16 KB", async () => {
+    useClient("203.0.113.24");
+    const types: ContractTypeDef[] = [
+      {
+        kind: "struct",
+        name: "Big",
+        fields: Array.from({ length: 1000 }, (_, i) => ({
+          name: `field_${i}`,
+          type: "u64",
+        })),
+      },
+    ];
+    const result = await simulateInvocationAction(
+      CONTRACT_ID,
+      "bump",
+      [],
+      types
+    );
+
+    expect(result.error).toMatch(/types is larger than 16 KB/);
+    expect(simulateInvocation).not.toHaveBeenCalled();
   });
 });

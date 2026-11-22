@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { getContractWasmInfo, simulateInvocation } from "@/lib/soroban";
 import { coerceArgInput } from "@/lib/xdr";
 import { rateLimitRequest } from "@/lib/rate-limit";
+import {
+  MAX_SIMULATE_BYTES,
+  simulateInputError,
+} from "@/lib/simulate-limits";
 import type { ContractFunctionSpec, ContractTypeDef } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-/** A simulation is a function name and a few short arguments; anything much larger isn't a real call. */
-const MAX_BODY_BYTES = 16 * 1024;
 
 interface Params {
   params: { id: string };
@@ -102,7 +103,7 @@ export async function POST(req: Request, { params }: Params) {
   });
   if (limited) return limited;
 
-  const raw = await readCappedBody(req, MAX_BODY_BYTES);
+  const raw = await readCappedBody(req, MAX_SIMULATE_BYTES);
   if (raw === null) {
     return NextResponse.json(
       { error: "Request body too large" },
@@ -129,6 +130,14 @@ export async function POST(req: Request, { params }: Params) {
   if (!Array.isArray(args)) {
     return NextResponse.json(
       { error: "args must be an array" },
+      { status: 400 }
+    );
+  }
+
+  const tooLarge = simulateInputError(args, body.types ?? []);
+  if (tooLarge) {
+    return NextResponse.json(
+      { success: false, error: tooLarge },
       { status: 400 }
     );
   }
