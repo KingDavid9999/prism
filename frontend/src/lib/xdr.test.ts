@@ -106,6 +106,21 @@ describe("coerceArgInput", () => {
     expect(coerceArgInput("true", "Bool").b()).toBe(true);
   });
 
+  it("accepts true and false for Bool, ignoring case and surrounding space", () => {
+    expect(coerceArgInput("true", "Bool").b()).toBe(true);
+    expect(coerceArgInput("false", "Bool").b()).toBe(false);
+    expect(coerceArgInput("  TRUE ", "Bool").b()).toBe(true);
+    expect(coerceArgInput("False", "Bool").b()).toBe(false);
+  });
+
+  it("rejects any other Bool input rather than quietly making it false", () => {
+    for (const bad of ["yes", "1", "0", "", "tru", "truee"]) {
+      expect(() => coerceArgInput(bad, "Bool")).toThrow(
+        "is not a valid Bool. Bool takes true or false."
+      );
+    }
+  });
+
   it("coerces a valid account address", () => {
     const address = Keypair.random().publicKey();
     const scval = coerceArgInput(address, "Address");

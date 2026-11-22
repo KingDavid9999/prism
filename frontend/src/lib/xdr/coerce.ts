@@ -119,7 +119,18 @@ export function coerceArgInput(
   types: ParsedTypeDef[] = []
 ): xdr.ScVal {
   const t = specType.toLowerCase();
-  if (t === "bool") return nativeToScVal(raw.trim().toLowerCase() === "true");
+  if (t === "bool") {
+    // Anything but true or false is an error. "yes" or "1" would otherwise
+    // quietly become false, and the call would run with the opposite of what
+    // was meant.
+    const word = raw.trim().toLowerCase();
+    if (word !== "true" && word !== "false") {
+      throw new Error(
+        `"${raw.trim()}" is not a valid Bool. Bool takes true or false.`
+      );
+    }
+    return nativeToScVal(word === "true");
+  }
   if (t === "u32")
     return nativeToScVal(
       Number(parseInteger(raw, specType, INTEGER_BOUNDS.u32)),
