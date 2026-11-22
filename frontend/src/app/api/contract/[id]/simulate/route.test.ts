@@ -72,8 +72,9 @@ describe("POST /api/contract/[id]/simulate — type definitions (#30)", () => {
     );
 
     expect(coerceArgInput).toHaveBeenCalledWith("42", "u64", callerTypes);
-    // WASM should NOT be fetched when types are supplied by the caller.
-    expect(getContractWasmInfo).not.toHaveBeenCalled();
+    // The WASM is read to check the typed argument against the declared
+    // signature, but the caller's type definitions are the ones used.
+    expect(getContractWasmInfo).toHaveBeenCalledWith(CONTRACT_ID);
   });
 
   it("fetches types from the WASM when no types are supplied by the caller", async () => {
@@ -127,5 +128,111 @@ describe("POST /api/contract/[id]/simulate — type definitions (#30)", () => {
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.returnValue).toBe("42");
+  });
+});
+
+describe("POST /api/contract/[id]/simulate — argument types from the spec (#233)", () => {
+  const bump = {
+    name: "bump",
+    inputs: [{ name: "by", type: "u32" }],
+    outputs: ["u32"],
+  };
+
+  function declareFunctions(functions: (typeof bump)[]) {
+    vi.mocked(getContractWasmInfo).mockResolvedValue({
+      size: 100,
+      functions,
+      events: [],
+      types: [],
+    });
+  }
+
+  it("takes an argument's type from the declared signature when none is given", async () => {
+    declareFunctions([bump]);
+    vi.mocked(simulateInvocation).mockResolvedValue({
+      success: true,
+      returnValue: "4",
+    });
+
+    const res = await POST(
+      makeRequest({ functionName: "bump", args: [{ value: "3" }] }),
+      params
+    );
+
+    expect(res.status).toBe(200);
+    expect(coerceArgInput).toHaveBeenCalledWith("3", "u32", []);
+    expect(simulateInvocation).toHaveBeenCalledWith(CONTRACT_ID, "bump", [
+      { type: "scvString", value: "3" },
+    ]);
+  });
+
+  it("uses the declared spelling when a given type differs only in case or spacing", async () => {
+    declareFunctions([
+      {
+        name: "tally",
+        inputs: [{ name: "amounts", type: "Vec<Symbol>" }],
+        outputs: [],
+      },
+    ]);
+    vi.mocked(simulateInvocation).mockResolvedValue({ success: true });
+
+    const res = await POST(
+      makeRequest({
+        functionName: "tally",
+        args: [{ value: '["a"]', type: "vec< symbol >" }],
+      }),
+      params
+    );
+
+    expect(res.status).toBe(200);
+    expect(coerceArgInput).toHaveBeenCalledWith('["a"]', "Vec<Symbol>", []);
+  });
+
+  it("rejects a given type that disagrees with the signature, before simulating", async () => {
+    declareFunctions([bump]);
+
+    const res = await POST(
+      makeRequest({
+        functionName: "bump",
+        args: [{ value: "3", type: "U64" }],
+      }),
+      params
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe("args[0] is typed U64, but bump takes u32 there.");
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
+
+  it("rejects more arguments than the function declares", async () => {
+    declareFunctions([bump]);
+
+    const res = await POST(
+      makeRequest({
+        functionName: "bump",
+        args: [{ value: "3" }, { value: "4" }],
+      }),
+      params
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toMatch(/takes 1 argument\(s\), but 2 were given/);
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
+
+  it("asks for a type when an argument has none and the signature can't be read", async () => {
+    vi.mocked(getContractWasmInfo).mockResolvedValue(null);
+
+    const res = await POST(
+      makeRequest({ functionName: "bump", args: [{ value: "3" }] }),
+      params
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toMatch(/args\[0\] needs a type/);
+    expect(simulateInvocation).not.toHaveBeenCalled();
   });
 });

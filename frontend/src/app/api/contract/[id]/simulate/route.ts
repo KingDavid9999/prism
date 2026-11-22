@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getContractWasmInfo, simulateInvocation } from "@/lib/soroban";
 import { coerceArgInput } from "@/lib/xdr";
 import { rateLimitRequest } from "@/lib/rate-limit";
-import type { ContractTypeDef } from "@/types";
+import type { ContractFunctionSpec, ContractTypeDef } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,12 @@ interface Params {
 
 interface SimulateBody {
   functionName?: string;
-  args?: { value: string; type: string }[];
+  /**
+   * `type` is optional. When it is left out, the argument's type comes from the
+   * function's declared signature in the contract's spec. When it is given, it
+   * must agree with that signature.
+   */
+  args?: { value: string; type?: string }[];
   /**
    * Optional contract type definitions (structs, unions, enums) used to
    * coerce structured arguments correctly — the same path the UI takes via
@@ -51,6 +56,45 @@ async function readCappedBody(
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
+/** Normalize a spec type for comparison: "Map<Symbol, U32>" and "map<symbol,u32>" name the same type. */
+function normalizeType(type: string): string {
+  return type.replace(/\s+/g, "").toLowerCase();
+}
+
+/**
+ * The spec type to coerce argument `index` as. A type the caller leaves out is
+ * taken from the declared signature. A type they give must match it, so a
+ * wrong one fails here with a message that names the mismatch, not as a
+ * confusing failure from the contract.
+ */
+function argumentType(
+  functionName: string,
+  index: number,
+  given: string | undefined,
+  declared: ContractFunctionSpec | undefined
+): string {
+  const expected = declared?.inputs[index]?.type;
+  if (expected === undefined) {
+    if (given === undefined) {
+      throw new Error(
+        `args[${index}] needs a type, because Prism couldn't read the signature of ${functionName} from this contract.`
+      );
+    }
+    return given;
+  }
+  if (
+    given !== undefined &&
+    normalizeType(given) !== normalizeType(expected)
+  ) {
+    throw new Error(
+      `args[${index}] is typed ${given}, but ${functionName} takes ${expected} there.`
+    );
+  }
+  // The declared spelling, not the caller's: coercion matches user-defined
+  // type names case-sensitively.
+  return expected;
+}
+
 export async function POST(req: Request, { params }: Params) {
   const limited = rateLimitRequest(req, {
     scope: "contract-simulate",
@@ -80,6 +124,7 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
+  const functionName = body.functionName;
   const args = body.args ?? [];
   if (!Array.isArray(args)) {
     return NextResponse.json(
@@ -88,29 +133,36 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
+  // The contract's spec supplies the declared signature, which types any
+  // argument the caller leaves untyped and checks the ones they do type. It is
+  // read when there are arguments to type, and also for the type definitions
+  // when the caller hasn't supplied them.
   let types: ContractTypeDef[] = body.types ?? [];
-  if (types.length === 0) {
+  let declared: ContractFunctionSpec | undefined;
+  if (args.length > 0 || types.length === 0) {
     const wasm = await getContractWasmInfo(params.id);
-    types = wasm?.types ?? [];
-    const declared = wasm?.functions.find((f) => f.name === body.functionName);
-    if (declared && args.length > declared.inputs.length) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `${declared.name} takes ${declared.inputs.length} argument(s), but ${args.length} were given`,
-        },
-        { status: 400 }
-      );
-    }
+    if (types.length === 0) types = wasm?.types ?? [];
+    declared = wasm?.functions.find((f) => f.name === functionName);
+  }
+  if (declared && args.length > declared.inputs.length) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `${declared.name} takes ${declared.inputs.length} argument(s), but ${args.length} were given`,
+      },
+      { status: 400 }
+    );
   }
 
   try {
-    const scArgs = args.map((a) => coerceArgInput(a.value, a.type, types));
-    const result = await simulateInvocation(
-      params.id,
-      body.functionName,
-      scArgs
+    const scArgs = args.map((a, i) =>
+      coerceArgInput(
+        a.value,
+        argumentType(functionName, i, a.type, declared),
+        types
+      )
     );
+    const result = await simulateInvocation(params.id, functionName, scArgs);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(
