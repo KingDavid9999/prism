@@ -3,6 +3,7 @@ import {
   BASE_FEE,
   Contract,
   Keypair,
+  StrKey,
   TransactionBuilder,
   rpc,
   xdr,
@@ -46,7 +47,9 @@ import {
   getIndexedEvents,
   getIndexedStorageEntries,
   getIndexedInvocationReturnValue,
+  getIndexedTransactionEvents,
 } from "./indexed-db";
+import { formatHostError } from "./contract-error";
 
 const RPC_URL = config.sorobanRpcUrl;
 
@@ -485,6 +488,114 @@ export async function getInvocationReturnValue(
     const res = await server().getTransaction(txHash);
     if (res.status !== rpc.Api.GetTransactionStatus.SUCCESS) return null;
     return res.returnValue ? scValToDisplay(res.returnValue) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Convert the contract events RPC reports for one transaction, grouped by
+ * operation, into the same shape the event log renders everywhere else.
+ */
+export function contractEventsFromRpc(
+  groups: xdr.ContractEvent[][],
+  txHash: string,
+  ledger: number,
+  timestamp: string
+): ContractEvent[] {
+  return groups.flat().flatMap((event, i): ContractEvent[] => {
+    try {
+      const id = event.contractId();
+      if (!id) return [];
+      const body = event.body().v0();
+      return [
+        {
+          id: `${txHash}-${i}`,
+          contractId: StrKey.encodeContract(id as unknown as Buffer),
+          type: event.type().name,
+          topic: body.topics().map(scValToDisplay),
+          topicTypes: body.topics().map(scValTypeLabel),
+          value: scValToDisplay(body.data()),
+          valueType: scValTypeLabel(body.data()),
+          txHash,
+          ledger,
+          timestamp,
+        },
+      ];
+    } catch {
+      // A malformed event shouldn't hide the rest of the transaction's events.
+      return [];
+    }
+  });
+}
+
+/**
+ * The contract events a transaction emitted: from the indexer when it is
+ * configured, otherwise from RPC while it still holds the transaction.
+ */
+export async function getTransactionEvents(
+  txHash: string
+): Promise<ContractEvent[]> {
+  const indexed = await getIndexedTransactionEvents(txHash);
+  if (indexed !== null) {
+    return indexed.map((e) => ({
+      id: e.eventId,
+      contractId: e.contractId,
+      type: e.type,
+      topic: e.topic,
+      value: e.value,
+      txHash: e.txHash,
+      ledger: e.ledger,
+      timestamp: e.createdAt,
+    }));
+  }
+
+  try {
+    const res = await server().getTransaction(txHash);
+    if (res.status === rpc.Api.GetTransactionStatus.NOT_FOUND) return [];
+    return contractEventsFromRpc(
+      res.events.contractEventsXdr,
+      txHash,
+      res.ledger,
+      new Date(res.createdAt * 1000).toISOString()
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The first host error in a transaction's diagnostic events, formatted the way
+ * Stellar tooling prints it. Each error the host raises is recorded as a topic
+ * `scvError`, so that is what is searched for.
+ */
+export function hostErrorFromDiagnostics(
+  diagnostics: xdr.DiagnosticEvent[]
+): string | null {
+  for (const diagnostic of diagnostics) {
+    try {
+      for (const topic of diagnostic.event().body().v0().topics()) {
+        if (topic.switch().name === "scvError")
+          return formatHostError(topic.error());
+      }
+    } catch {
+      // A malformed diagnostic shouldn't hide the ones after it.
+    }
+  }
+  return null;
+}
+
+/**
+ * The host error that trapped a failed Soroban transaction, read from the
+ * diagnostic events RPC keeps for recent transactions. Null when there is none.
+ */
+export async function getTransactionHostError(
+  txHash: string
+): Promise<string | null> {
+  try {
+    const res = await server().getTransaction(txHash);
+    if (res.status === rpc.Api.GetTransactionStatus.NOT_FOUND) return null;
+    return hostErrorFromDiagnostics(res.diagnosticEventsXdr ?? []);
   } catch {
     return null;
   }

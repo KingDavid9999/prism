@@ -33,6 +33,10 @@ describe("decodeAnyXdr partial decodes", () => {
     expect(result?.fields.map((f) => f.label)).toEqual([
       "Entry type",
       "Last modified ledger",
+      "Contract",
+      "Durability",
+      "Storage key",
+      "Value",
     ]);
   });
 

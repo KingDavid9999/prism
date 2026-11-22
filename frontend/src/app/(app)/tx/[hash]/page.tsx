@@ -7,7 +7,14 @@ import {
   isNotFound,
 } from "@/lib/horizon";
 import CopyButton from "@/components/CopyButton";
-import { getInvocationReturnValue } from "@/lib/soroban";
+import {
+  getContractWasmInfo,
+  getInvocationReturnValue,
+  getTransactionEvents,
+  getTransactionHostError,
+} from "@/lib/soroban";
+import { describeContractError } from "@/lib/contract-error";
+import EventLog from "@/components/EventLog";
 import {
   decodeAuthorizations,
   decodeDeployments,
@@ -97,6 +104,40 @@ export default async function TxPage({ params }: Props) {
     invocations.length > 0 || deployments.length > 0
       ? await getInvocationReturnValue(tx.hash)
       : null;
+
+  // RPC's diagnostic events name the host error that trapped a failed Soroban
+  // call, and its events are the ones the transaction emitted. Naming a
+  // contract error and labelling event fields both need that contract's spec.
+  const hostError =
+    !tx.successful && invocations.length > 0
+      ? await getTransactionHostError(tx.hash)
+      : null;
+  const events =
+    invocations.length > 0 ? await getTransactionEvents(tx.hash) : [];
+  // Only fetch specs when something needs them: fetching WASM is not free.
+  const specContractIds = [
+    ...new Set([
+      ...(hostError ? invocations.slice(0, 1).map((i) => i.contractId) : []),
+      ...events.map((e) => e.contractId),
+    ]),
+  ];
+  const specs = new Map(
+    await Promise.all(
+      specContractIds.map(
+        async (id) => [id, await getContractWasmInfo(id)] as const
+      )
+    )
+  );
+  const namedError =
+    hostError && invocations.length > 0
+      ? describeContractError(
+          hostError,
+          specs.get(invocations[0].contractId)?.types ?? []
+        )
+      : null;
+  const eventSpecs = specContractIds.flatMap(
+    (id) => specs.get(id)?.events ?? []
+  );
 
   // Non-Soroban transactions have no invocation panel, so their operations
   // would otherwise be visible only as a count. The operations resource is
@@ -302,6 +343,22 @@ export default async function TxPage({ params }: Props) {
         </div>
       )}
 
+      {hostError && (
+        <div className="mt-6 rounded-xl border border-prism-red/30 bg-prism-red/10 p-5">
+          <h2 className="text-sm font-semibold text-prism-red mb-1">
+            Host error:{" "}
+            <span className="font-mono">
+              {namedError
+                ? `${namedError.name} (#${namedError.code})`
+                : hostError}
+            </span>
+          </h2>
+          {namedError && (
+            <p className="text-xs font-mono text-prism-red/80">{hostError}</p>
+          )}
+        </div>
+      )}
+
       {failureUndecodable && (
         <div className="mt-6 rounded-xl border border-prism-red/30 bg-prism-red/10 p-4">
           <p className="text-xs text-prism-red">
@@ -381,74 +438,12 @@ export default async function TxPage({ params }: Props) {
         </div>
       ))}
 
-      {deployments.map((deployment) => {
-        const newContract =
-          deployment.kind !== "uploadWasm" &&
-          returnValue !== null &&
-          StrKey.isValidContract(returnValue)
-            ? returnValue
-            : null;
-        return (
-          <div
-            key={`deployment-${deployment.operationIndex}`}
-            className="mt-6 rounded-xl border border-prism-border bg-prism-surface p-6 space-y-4"
-          >
-            <h2 className="text-lg font-semibold mb-1">
-              {deployment.kind === "uploadWasm"
-                ? "WASM Upload"
-                : deployment.kind === "createContractV2"
-                  ? "Contract Deployment (v2)"
-                  : "Contract Deployment"}{" "}
-              <span className="text-sm font-mono text-prism-muted">
-                operation #{deployment.operationIndex}
-              </span>
-            </h2>
-            {deployment.wasmHash && (
-              <DetailRow label="WASM hash" value={deployment.wasmHash} mono />
-            )}
-            {deployment.wasmSize !== undefined && (
-              <DetailRow
-                label="WASM size"
-                value={`${formatNumber(deployment.wasmSize)} bytes`}
-              />
-            )}
-            {newContract && (
-              <DetailRow
-                label="New contract"
-                value={newContract}
-                mono
-                link={`/contract/${newContract}`}
-              />
-            )}
-            {deployment.kind === "createContractV2" && (
-              <div className="border-b border-prism-border pb-3">
-                <p className="text-prism-muted text-sm mb-2">
-                  Constructor arguments
-                </p>
-                {deployment.constructorArgs.length === 0 ? (
-                  <p className="text-xs font-mono text-prism-muted">(none)</p>
-                ) : (
-                  <div className="space-y-1">
-                    {deployment.constructorArgs.map((a, i) => (
-                      <p
-                        key={i}
-                        className="text-xs font-mono text-prism-muted break-all"
-                      >
-                        {a}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            {authorizationsFor(deployment.operationIndex).length > 0 && (
-              <AuthorizationTree
-                entries={authorizationsFor(deployment.operationIndex)}
-              />
-            )}
-          </div>
-        );
-      })}
+      {events.length > 0 && (
+        <div className="mt-6 rounded-xl border border-prism-border bg-prism-surface p-6">
+          <h2 className="text-lg font-semibold mb-4">Events</h2>
+          <EventLog events={events} specs={eventSpecs} showMeta={false} />
+        </div>
+      )}
 
       {resources && invocations.length === 0 && (
         <div className="mt-6 rounded-xl border border-prism-border bg-prism-surface p-6 space-y-4">
