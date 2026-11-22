@@ -6,7 +6,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { rateLimit, getClientKey, rateLimitRequest } from "./rate-limit";
+import {
+  rateLimit,
+  rateLimitAsync,
+  getClientKey,
+  rateLimitRequest,
+  type RateLimitResult,
+  type RateLimitStore,
+} from "./rate-limit";
 
 describe("rateLimit", () => {
   beforeEach(() => {
@@ -198,5 +205,52 @@ describe("rateLimitRequest uses the shared store (#225)", () => {
     expect(await rateLimitRequest(instanceA, opts)).toBeNull();
     expect(await rateLimitRequest(instanceB, opts)).toBeNull();
     expect((await rateLimitRequest(instanceA, opts))?.status).toBe(429);
+  });
+});
+
+// Issue #226 — an unreachable Redis must not take the API down.
+describe("rateLimitAsync falls back to memory when the store fails (#226)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function rejectingStore(): RateLimitStore {
+    return { increment: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")) };
+  }
+
+  it("keeps answering and limits in memory while the store rejects", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const store = rejectingStore();
+    const results: RateLimitResult[] = [];
+    for (let i = 0; i < 3; i++) {
+      results.push(await rateLimitAsync("fallback-226-a", 2, 60_000, store));
+    }
+
+    expect(results.map((r) => r.success)).toEqual([true, true, false]);
+    expect(results[2].retryAfter).toBeGreaterThan(0);
+  });
+
+  it("does not throw to the caller, so the route can still respond", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(
+      rateLimitAsync("fallback-226-b", 5, 60_000, rejectingStore())
+    ).resolves.toMatchObject({ success: true });
+  });
+
+  it("logs a failing store at most once a minute", async () => {
+    vi.useFakeTimers();
+    // Move past any earlier logging so this test's first failure is logged.
+    vi.setSystemTime(Date.now() + 10 * 60_000);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const store = rejectingStore();
+
+    await rateLimitAsync("fallback-226-c", 100, 60_000, store);
+    await rateLimitAsync("fallback-226-c", 100, 60_000, store);
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(60_000);
+    await rateLimitAsync("fallback-226-c", 100, 60_000, store);
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 });
