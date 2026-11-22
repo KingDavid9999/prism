@@ -11,6 +11,8 @@ vi.mock("./soroban", () => ({
   parseStorageKeyInput: vi.fn(),
   simulateInvocation: vi.fn(),
 }));
+// Server actions read the caller's headers; there is no request in a unit test.
+vi.mock("next/headers", () => ({ headers: () => new Headers() }));
 
 describe("decodeXdrAction (issue #44 — XDR size cap)", () => {
   it("rejects empty input", async () => {

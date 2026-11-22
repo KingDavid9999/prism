@@ -242,13 +242,23 @@ export async function rateLimitAsync(
  *     `TRUST_PROXY=1` to get per-IP bucketing in production.
  */
 export function getClientKey(req: Request): string {
+  return clientKeyFromHeaders(req.headers);
+}
+
+/**
+ * The same key as getClientKey, for callers that have request headers but no
+ * Request, such as server actions (#227).
+ */
+export function clientKeyFromHeaders(headers: {
+  get(name: string): string | null;
+}): string {
   const trustProxy =
     process.env.TRUST_PROXY !== undefined &&
     process.env.TRUST_PROXY !== "" &&
     process.env.TRUST_PROXY !== "false";
 
   if (trustProxy) {
-    const forwarded = req.headers.get("x-forwarded-for");
+    const forwarded = headers.get("x-forwarded-for");
     const ip = forwarded?.split(",")[0]?.trim();
     if (ip) return ip;
   }
@@ -269,11 +279,9 @@ export function getClientKey(req: Request): string {
  */
 export async function rateLimitRequest(
   req: Request,
-  opts?: { scope?: string; max?: number; store?: RateLimitStore | null }
+  opts?: RateLimitOptions
 ): Promise<NextResponse | null> {
-  const max = opts?.max ?? DEFAULT_MAX_PER_WINDOW;
-  const key = `${opts?.scope ?? "default"}:${getClientKey(req)}`;
-  const result = await rateLimitAsync(key, max, WINDOW_MS, opts?.store);
+  const result = await checkRateLimit(getClientKey(req), opts);
 
   if (!result.success) {
     return NextResponse.json(
@@ -286,4 +294,41 @@ export async function rateLimitRequest(
   }
 
   return null;
+}
+
+/**
+ * Rate-limit check for a server action, which receives request headers rather
+ * than a Request. Returns the message to show when the caller is over the
+ * limit, or null when the call may go ahead (#227).
+ *
+ * Give an action the scope and max of the route it mirrors, so both draw on
+ * the same allowance.
+ */
+export async function rateLimitAction(
+  headers: { get(name: string): string | null },
+  opts?: RateLimitOptions
+): Promise<string | null> {
+  const result = await checkRateLimit(clientKeyFromHeaders(headers), opts);
+  if (result.success) return null;
+  return `Rate limit exceeded. Try again in ${result.retryAfter ?? 60} seconds.`;
+}
+
+interface RateLimitOptions {
+  scope?: string;
+  max?: number;
+  store?: RateLimitStore | null;
+}
+
+/** Counts one call against the caller's bucket for `opts.scope`. */
+function checkRateLimit(
+  clientKey: string,
+  opts?: RateLimitOptions
+): Promise<RateLimitResult> {
+  const max = opts?.max ?? DEFAULT_MAX_PER_WINDOW;
+  return rateLimitAsync(
+    `${opts?.scope ?? "default"}:${clientKey}`,
+    max,
+    WINDOW_MS,
+    opts?.store
+  );
 }
