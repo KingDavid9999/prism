@@ -11,7 +11,7 @@ interface Params {
 }
 
 export async function GET(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, { scope: "contract-invocations" });
+  const limited = await rateLimitRequest(req, { scope: "contract-invocations" });
   if (limited) return limited;
 
   const request = parsePageRequest(new URL(req.url), INVOCATION_PAGE_SIZE);

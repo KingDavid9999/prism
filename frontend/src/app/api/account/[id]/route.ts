@@ -12,7 +12,7 @@ interface Params {
 const ACCOUNT_ID = /^G[A-Z2-7]{55}$/;
 
 export async function GET(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, { scope: "account" });
+  const limited = await rateLimitRequest(req, { scope: "account" });
   if (limited) return limited;
 
   if (!ACCOUNT_ID.test(params.id)) {

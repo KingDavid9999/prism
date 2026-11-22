@@ -96,7 +96,7 @@ function argumentType(
 }
 
 export async function POST(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, {
+  const limited = await rateLimitRequest(req, {
     scope: "contract-simulate",
     max: 10,
   });

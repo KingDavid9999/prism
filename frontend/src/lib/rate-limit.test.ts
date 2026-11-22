@@ -137,19 +137,66 @@ describe("rateLimitRequest (#27)", () => {
     vi.useRealTimers();
   });
 
-  it("returns null when the request is within the limit", () => {
+  it("returns null when the request is within the limit", async () => {
     const req = new Request("http://localhost/");
-    const result = rateLimitRequest(req, { scope: "test-http", max: 5 });
+    const result = await rateLimitRequest(req, { scope: "test-http", max: 5 });
     expect(result).toBeNull();
   });
 
-  it("returns a 429 NextResponse when the limit is exceeded", () => {
+  it("returns a 429 NextResponse when the limit is exceeded", async () => {
     vi.useFakeTimers();
     const req = new Request("http://localhost/");
     // Exhaust the bucket (scope must be unique to this test)
     for (let i = 0; i < 2; i++)
-      rateLimitRequest(req, { scope: "test-http-429", max: 2 });
-    const result = rateLimitRequest(req, { scope: "test-http-429", max: 2 });
+      await rateLimitRequest(req, { scope: "test-http-429", max: 2 });
+    const result = await rateLimitRequest(req, {
+      scope: "test-http-429",
+      max: 2,
+    });
     expect(result?.status).toBe(429);
+  });
+});
+
+// Issue #225 — every route goes through the configured store, not only memory.
+describe("rateLimitRequest uses the shared store (#225)", () => {
+  afterEach(() => {
+    delete process.env.TRUST_PROXY;
+  });
+
+  /** Stands in for Redis: one counter table that every caller shares. */
+  function sharedStore() {
+    const counts = new Map<string, number>();
+    const increment = vi.fn(async (key: string) => {
+      const count = (counts.get(key) ?? 0) + 1;
+      counts.set(key, count);
+      return { count, ttlMs: 60_000 };
+    });
+    return { increment };
+  }
+
+  it("counts each request against the store and returns 429 past the limit", async () => {
+    const store = sharedStore();
+    const req = new Request("http://localhost/");
+    const opts = { scope: "shared-225-a", max: 2, store };
+
+    expect(await rateLimitRequest(req, opts)).toBeNull();
+    expect(await rateLimitRequest(req, opts)).toBeNull();
+    expect((await rateLimitRequest(req, opts))?.status).toBe(429);
+    expect(store.increment).toHaveBeenCalledTimes(3);
+  });
+
+  it("two instances sharing a store draw on one limit", async () => {
+    // Both instances hold the same store, so the second one's request counts
+    // against the first one's allowance.
+    const store = sharedStore();
+    process.env.TRUST_PROXY = "1";
+    const headers = { "x-forwarded-for": "198.51.100.9" };
+    const opts = { scope: "shared-225-b", max: 2, store };
+    const instanceA = new Request("http://localhost/", { headers });
+    const instanceB = new Request("http://localhost/", { headers });
+
+    expect(await rateLimitRequest(instanceA, opts)).toBeNull();
+    expect(await rateLimitRequest(instanceB, opts)).toBeNull();
+    expect((await rateLimitRequest(instanceA, opts))?.status).toBe(429);
   });
 });

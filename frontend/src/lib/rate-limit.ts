@@ -177,14 +177,18 @@ export function getClientKey(req: Request): string {
 /**
  * HTTP-level helper: returns a 429 NextResponse if the caller is over the
  * limit, or null if the request should proceed.
+ *
+ * Goes through rateLimitAsync, so every route shares the configured store
+ * (Redis when RATE_LIMIT_REDIS_URL is set). `store` overrides that store and
+ * exists for tests.
  */
-export function rateLimitRequest(
+export async function rateLimitRequest(
   req: Request,
-  opts?: { scope?: string; max?: number }
-): NextResponse | null {
+  opts?: { scope?: string; max?: number; store?: RateLimitStore | null }
+): Promise<NextResponse | null> {
   const max = opts?.max ?? DEFAULT_MAX_PER_WINDOW;
   const key = `${opts?.scope ?? "default"}:${getClientKey(req)}`;
-  const result = rateLimit(key, max, WINDOW_MS);
+  const result = await rateLimitAsync(key, max, WINDOW_MS, opts?.store);
 
   if (!result.success) {
     return NextResponse.json(
