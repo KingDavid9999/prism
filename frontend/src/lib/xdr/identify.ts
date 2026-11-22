@@ -1,6 +1,12 @@
 import { Address, StrKey, xdr } from "@stellar/stellar-sdk";
 import { decodeScVal, scValToDisplay } from "./display";
-import { decodeInvocation, getResourceUsage, v1Tx } from "./invocation";
+import {
+  decodeAuthorizationEntry,
+  decodeInvocation,
+  describeCredentials,
+  getResourceUsage,
+  v1Tx,
+} from "./invocation";
 import { specTypeToString } from "./spec";
 
 /**
@@ -16,6 +22,10 @@ const CANDIDATE_XDR_TYPES = [
   "LedgerEntry",
   "LedgerKey",
   "ScSpecEntry",
+  "SorobanAuthorizationEntry",
+  "SorobanTransactionData",
+  "ContractEvent",
+  "DiagnosticEvent",
   "ScVal",
 ] as const;
 
@@ -341,6 +351,67 @@ function specEntryFields(entry: xdr.ScSpecEntry): XdrField[] {
   return fields;
 }
 
+function authorizationEntryFields(
+  entry: xdr.SorobanAuthorizationEntry
+): XdrField[] {
+  const decoded = decodeAuthorizationEntry(entry);
+  return [
+    { label: "Authorized by", value: describeCredentials(decoded.credentials) },
+    { label: "Root invocation", value: decoded.root.label },
+    {
+      label: "Sub-invocations",
+      value: String(decoded.root.subInvocations.length),
+    },
+  ];
+}
+
+function transactionDataFields(data: xdr.SorobanTransactionData): XdrField[] {
+  const resources = data.resources();
+  const footprint = resources.footprint();
+  return [
+    { label: "Instructions", value: String(resources.instructions()) },
+    {
+      label: "Read / write bytes",
+      value: `${resources.diskReadBytes()} / ${resources.writeBytes()}`,
+    },
+    {
+      label: "Resource fee",
+      value: `${data.resourceFee().toString()} stroops`,
+    },
+    {
+      label: "Footprint",
+      value: `${footprint.readOnly().length} read-only, ${footprint.readWrite().length} read-write`,
+    },
+  ];
+}
+
+function contractEventFields(event: xdr.ContractEvent): XdrField[] {
+  const contractId = event.contractId() as unknown as Buffer | null;
+  const body = event.body().v0();
+  return [
+    { label: "Event type", value: event.type().name },
+    {
+      label: "Contract",
+      value: contractId ? StrKey.encodeContract(contractId) : "(none)",
+    },
+    {
+      label: "Topics",
+      value: body.topics().map(scValToDisplay).join(", ") || "(none)",
+    },
+    { label: "Data", value: scValToDisplay(body.data()) },
+  ];
+}
+
+function diagnosticEventFields(event: xdr.DiagnosticEvent): XdrField[] {
+  return [
+    {
+      label: "In successful contract call",
+      value: String(event.inSuccessfulContractCall()),
+    },
+    ...contractEventFields(event.event()),
+  ];
+}
+
 function scValFields(value: xdr.ScVal): XdrField[] {
   const decoded = decodeScVal(value);
   return [
@@ -375,6 +446,20 @@ function summarize(type: XdrTypeName, base64: string): XdrField[] {
       return ledgerKeyFields(xdr.LedgerKey.fromXDR(base64, "base64"));
     case "ScSpecEntry":
       return specEntryFields(xdr.ScSpecEntry.fromXDR(base64, "base64"));
+    case "SorobanAuthorizationEntry":
+      return authorizationEntryFields(
+        xdr.SorobanAuthorizationEntry.fromXDR(base64, "base64")
+      );
+    case "SorobanTransactionData":
+      return transactionDataFields(
+        xdr.SorobanTransactionData.fromXDR(base64, "base64")
+      );
+    case "ContractEvent":
+      return contractEventFields(xdr.ContractEvent.fromXDR(base64, "base64"));
+    case "DiagnosticEvent":
+      return diagnosticEventFields(
+        xdr.DiagnosticEvent.fromXDR(base64, "base64")
+      );
     case "ScVal":
       return scValFields(xdr.ScVal.fromXDR(base64, "base64"));
   }

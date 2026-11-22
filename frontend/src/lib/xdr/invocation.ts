@@ -1,6 +1,10 @@
 import { Address, xdr } from "@stellar/stellar-sdk";
 import type {
+  AuthorizationCredentials,
+  AuthorizationEntry,
+  AuthorizedInvocationNode,
   FootprintEntry,
+  OperationAuthorizations,
   OperationInvocation,
   ResourceUsage,
   SorobanInvocation,
@@ -60,6 +64,69 @@ export function decodeInvocation(
   envelope: xdr.TransactionEnvelope
 ): SorobanInvocation | null {
   return decodeInvocations(envelope)[0] ?? null;
+}
+
+/** One line saying who signed an authorization entry. */
+export function describeCredentials(
+  credentials: AuthorizationCredentials
+): string {
+  switch (credentials.kind) {
+    case "sourceAccount":
+      return "transaction source account";
+    case "address":
+      return `${credentials.address} (nonce ${credentials.nonce}, expires at ledger ${credentials.expirationLedger})`;
+    case "other":
+      return credentials.type;
+  }
+}
+
+function describeAuthorizedFunction(fn: xdr.SorobanAuthorizedFunction): string {
+  if (fn.switch().name !== "sorobanAuthorizedFunctionTypeContractFn") {
+    return "create contract";
+  }
+  const call = fn.contractFn();
+  const contract = Address.fromScAddress(call.contractAddress()).toString();
+  const args = call.args().map(scValToDisplay).join(", ");
+  return `${contract}.${call.functionName().toString()}(${args})`;
+}
+
+function authorizedInvocationNode(
+  invocation: xdr.SorobanAuthorizedInvocation
+): AuthorizedInvocationNode {
+  return {
+    label: describeAuthorizedFunction(invocation.function()),
+    subInvocations: invocation.subInvocations().map(authorizedInvocationNode),
+  };
+}
+
+/**
+ * Decode one SorobanAuthorizationEntry: the credentials that authorized it and
+ * the call tree it covers. The tree's sub-invocations are the contract-to-
+ * contract calls made under that authorization.
+ */
+export function decodeAuthorizationEntry(
+  entry: xdr.SorobanAuthorizationEntry
+): AuthorizationEntry {
+  const credentials = entry.credentials();
+  const kind = credentials.switch().name;
+  let description: AuthorizationCredentials;
+  if (kind === "sorobanCredentialsSourceAccount") {
+    description = { kind: "sourceAccount" };
+  } else if (kind === "sorobanCredentialsAddress") {
+    const address = credentials.address();
+    description = {
+      kind: "address",
+      address: Address.fromScAddress(address.address()).toString(),
+      nonce: address.nonce().toString(),
+      expirationLedger: address.signatureExpirationLedger(),
+    };
+  } else {
+    description = { kind: "other", type: kind };
+  }
+  return {
+    credentials: description,
+    root: authorizedInvocationNode(entry.rootInvocation()),
+  };
 }
 
 function bytesToHex(bytes: Iterable<number>): string {
