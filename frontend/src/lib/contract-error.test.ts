@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { describeContractError } from "./contract-error";
+import { xdr } from "@stellar/stellar-sdk";
+import { describeContractError, formatHostError } from "./contract-error";
 import type { ContractTypeDef } from "@/types";
 
 /** Mirrors the error enum in contracts/showcase. */
@@ -61,5 +62,17 @@ describe("describeContractError", () => {
     ];
     expect(describeContractError("Error(Contract, #3)", noErrors)).toBeNull();
     expect(describeContractError("Error(Contract, #3)", [])).toBeNull();
+  });
+});
+
+describe("formatHostError", () => {
+  it("prints a contract's own error the way the host does", () => {
+    expect(formatHostError(xdr.ScError.sceContract(3))).toBe("Error(Contract, #3)");
+  });
+
+  it("prints a host error by its type and code", () => {
+    expect(
+      formatHostError(xdr.ScError.sceBudget(xdr.ScErrorCode.scecExceededLimit()))
+    ).toBe("Error(Budget, ExceededLimit)");
   });
 });

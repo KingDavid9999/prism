@@ -5,6 +5,7 @@
 // to pull stellar-sdk into the browser bundle. The type import is erased at
 // compile time.
 import type { ContractTypeDef } from "@/types";
+import type { xdr } from "@stellar/stellar-sdk";
 
 /**
  * A contract error as the host reports it, e.g. "Error(Contract, #3)" inside a
@@ -38,4 +39,17 @@ export function describeContractError(
       return { name: `${def.name}::${found.name}`, code, doc: def.doc };
   }
   return null;
+}
+
+/**
+ * Render a host error from a diagnostic event the way Stellar tooling does:
+ * `Error(Contract, #3)` for a contract's own error, or e.g.
+ * `Error(Budget, ExceededLimit)` for one raised by the host. Takes the
+ * already-decoded ScError, so this module still needs no runtime SDK import.
+ */
+export function formatHostError(error: xdr.ScError): string {
+  const kind = error.switch().name;
+  if (kind === "sceContract")
+    return `Error(Contract, #${error.contractCode()})`;
+  return `Error(${kind.replace(/^sce/, "")}, ${error.code().name.replace(/^scec/, "")})`;
 }

@@ -190,6 +190,30 @@ export interface IndexedEvent {
  * One page of a contract's event history since the indexer started, newest
  * first. `before` continues from the cursor a previous page returned.
  */
+/** Every contract event the indexer recorded for one transaction, in emission order. */
+export async function getIndexedTransactionEvents(
+  txHash: string
+): Promise<(IndexedEvent & { contractId: string })[] | null> {
+  if (!isIndexerConfigured()) return null;
+  const { rows } = await getPool().query(
+    `SELECT id, "eventId", "contractId", type, topic, value, ledger, "createdAt"
+     FROM "ContractEventRecord"
+     WHERE "txHash" = $1
+     ORDER BY ledger, id`,
+    [txHash]
+  );
+  return rows.map((r) => ({
+    eventId: r.eventId,
+    contractId: r.contractId,
+    type: r.type,
+    topic: r.topic,
+    value: r.value,
+    txHash,
+    ledger: r.ledger,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
 export async function getIndexedEvents(
   contractId: string,
   { limit, before }: PageRequest

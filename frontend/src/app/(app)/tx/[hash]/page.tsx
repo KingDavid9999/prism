@@ -7,7 +7,14 @@ import {
   isNotFound,
 } from "@/lib/horizon";
 import CopyButton from "@/components/CopyButton";
-import { getInvocationReturnValue } from "@/lib/soroban";
+import {
+  getContractWasmInfo,
+  getInvocationReturnValue,
+  getTransactionEvents,
+  getTransactionHostError,
+} from "@/lib/soroban";
+import { describeContractError } from "@/lib/contract-error";
+import EventLog from "@/components/EventLog";
 import {
   decodeInvocations,
   decodeTransactionFailure,
@@ -84,6 +91,40 @@ export default async function TxPage({ params }: Props) {
   const resources = envelope ? getResourceUsage(envelope, tx.fee) : null;
   const returnValue =
     invocations.length > 0 ? await getInvocationReturnValue(tx.hash) : null;
+
+  // RPC's diagnostic events name the host error that trapped a failed Soroban
+  // call, and its events are the ones the transaction emitted. Naming a
+  // contract error and labelling event fields both need that contract's spec.
+  const hostError =
+    !tx.successful && invocations.length > 0
+      ? await getTransactionHostError(tx.hash)
+      : null;
+  const events =
+    invocations.length > 0 ? await getTransactionEvents(tx.hash) : [];
+  // Only fetch specs when something needs them: fetching WASM is not free.
+  const specContractIds = [
+    ...new Set([
+      ...(hostError ? invocations.slice(0, 1).map((i) => i.contractId) : []),
+      ...events.map((e) => e.contractId),
+    ]),
+  ];
+  const specs = new Map(
+    await Promise.all(
+      specContractIds.map(
+        async (id) => [id, await getContractWasmInfo(id)] as const
+      )
+    )
+  );
+  const namedError =
+    hostError && invocations.length > 0
+      ? describeContractError(
+          hostError,
+          specs.get(invocations[0].contractId)?.types ?? []
+        )
+      : null;
+  const eventSpecs = specContractIds.flatMap(
+    (id) => specs.get(id)?.events ?? []
+  );
 
   // Non-Soroban transactions have no invocation panel, so their operations
   // would otherwise be visible only as a count. The operations resource is
@@ -289,6 +330,22 @@ export default async function TxPage({ params }: Props) {
         </div>
       )}
 
+      {hostError && (
+        <div className="mt-6 rounded-xl border border-prism-red/30 bg-prism-red/10 p-5">
+          <h2 className="text-sm font-semibold text-prism-red mb-1">
+            Host error:{" "}
+            <span className="font-mono">
+              {namedError
+                ? `${namedError.name} (#${namedError.code})`
+                : hostError}
+            </span>
+          </h2>
+          {namedError && (
+            <p className="text-xs font-mono text-prism-red/80">{hostError}</p>
+          )}
+        </div>
+      )}
+
       {failureUndecodable && (
         <div className="mt-6 rounded-xl border border-prism-red/30 bg-prism-red/10 p-4">
           <p className="text-xs text-prism-red">
@@ -362,6 +419,13 @@ export default async function TxPage({ params }: Props) {
           {i === 0 && resourceRows}
         </div>
       ))}
+
+      {events.length > 0 && (
+        <div className="mt-6 rounded-xl border border-prism-border bg-prism-surface p-6">
+          <h2 className="text-lg font-semibold mb-4">Events</h2>
+          <EventLog events={events} specs={eventSpecs} showMeta={false} />
+        </div>
+      )}
 
       {resources && invocations.length === 0 && (
         <div className="mt-6 rounded-xl border border-prism-border bg-prism-surface p-6 space-y-4">

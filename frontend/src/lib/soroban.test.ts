@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Keypair } from "@stellar/stellar-sdk";
-import { parseStorageKeyInput } from "./soroban";
+import { Keypair, StrKey, xdr } from "@stellar/stellar-sdk";
+import {
+  contractEventsFromRpc,
+  hostErrorFromDiagnostics,
+  parseStorageKeyInput,
+} from "./soroban";
 import type { ContractTypeDef } from "@/types";
 
 describe("parseStorageKeyInput", () => {
@@ -95,5 +99,71 @@ describe("getInvocationHistory concurrency (issue #34)", () => {
 
     expect(maxInFlight).toBeLessThanOrEqual(CONCURRENCY);
     expect(results).toHaveLength(txHashes.length);
+  });
+});
+
+describe("contractEventsFromRpc", () => {
+  const contractBytes = Buffer.alloc(32, 1);
+  const event = new xdr.ContractEvent({
+    ext: new xdr.ExtensionPoint(0),
+    contractId: contractBytes as unknown as xdr.Hash,
+    type: xdr.ContractEventType.contract(),
+    body: new xdr.ContractEventBody(
+      0,
+      new xdr.ContractEventV0({
+        topics: [xdr.ScVal.scvSymbol("NoteWritten")],
+        data: xdr.ScVal.scvU32(7),
+      })
+    ),
+  });
+
+  it("maps RPC's per-operation event groups into the event log shape", () => {
+    const [mapped] = contractEventsFromRpc([[event]], "abc", 42, "2026-01-01T00:00:00.000Z");
+    expect(mapped).toEqual({
+      id: "abc-0",
+      contractId: StrKey.encodeContract(contractBytes),
+      type: "contract",
+      topic: ["NoteWritten"],
+      topicTypes: ["symbol"],
+      value: "7",
+      valueType: "u32",
+      txHash: "abc",
+      ledger: 42,
+      timestamp: "2026-01-01T00:00:00.000Z",
+    });
+  });
+
+  it("returns nothing for a transaction that emitted no events", () => {
+    expect(contractEventsFromRpc([], "abc", 1, "")).toEqual([]);
+  });
+});
+
+describe("hostErrorFromDiagnostics", () => {
+  const diagnostic = (topic: xdr.ScVal) =>
+    new xdr.DiagnosticEvent({
+      inSuccessfulContractCall: false,
+      event: new xdr.ContractEvent({
+        ext: new xdr.ExtensionPoint(0),
+        contractId: null,
+        type: xdr.ContractEventType.diagnostic(),
+        body: new xdr.ContractEventBody(
+          0,
+          new xdr.ContractEventV0({
+            topics: [xdr.ScVal.scvSymbol("error"), topic],
+            data: xdr.ScVal.scvString("contract error"),
+          })
+        ),
+      }),
+    });
+
+  it("names a contract's own error by its code", () => {
+    const error = xdr.ScVal.scvError(xdr.ScError.sceContract(3));
+    expect(hostErrorFromDiagnostics([diagnostic(error)])).toBe(
+      "Error(Contract, #3)"
+    );
+  });
+
+  it("returns null when no diagnostic carries a host error", () => {
+    expect(hostErrorFromDiagnostics([])).toBeNull();
   });
 });

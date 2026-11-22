@@ -7,6 +7,7 @@ export {
   scValToDisplay,
   decodeXdr,
   decodeScValXdr,
+  scValTypeLabel,
 } from "./display";
 export {
   parseContractSpec,
