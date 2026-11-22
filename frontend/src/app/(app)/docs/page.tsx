@@ -72,11 +72,11 @@ const endpoints: Endpoint[] = [
     path: "/api/contract/:id/simulate",
     description:
       "Simulate a function call against current ledger state (read-only preview).",
-    body: '{ "functionName": "current_root", "args": [{ "value": "42", "type": "U32" }] }',
+    body: '{ "functionName": "current_root", "args": [{ "value": "42" }] }',
     example:
       "/api/contract/CDPUJYCTPGPEGS6MBXYLEWTYSGCPVKUHCURLF2ORT3RAVL5TF5JKIAI5/simulate",
     notes:
-      "No signing, no submission, no funds at risk. Rate-limited more tightly than the read routes (10/min).",
+      "Each argument's type is optional: when it is left out, the type comes from the function's signature in the contract's spec. A type that is given must match that signature, or the request fails with 400 and the mismatch is named. No signing, no submission, no funds at risk. Rate-limited more tightly than the read routes (10/min).",
   },
   {
     method: "GET",

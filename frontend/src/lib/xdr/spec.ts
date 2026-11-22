@@ -239,9 +239,11 @@ export function specTypeToString(type: xdr.ScSpecTypeDef): string {
     case "scSpecTypeOption":
       return `Option<${specTypeToString(type.option().valueType())}>`;
     case "scSpecTypeResult":
-      return `Result<${specTypeToString(type.result().okType())}>`;
+      return `Result<${specTypeToString(type.result().okType())}, ${specTypeToString(type.result().errorType())}>`;
     case "scSpecTypeTuple":
       return `(${type.tuple().valueTypes().map(specTypeToString).join(", ")})`;
+    case "scSpecTypeBytesN":
+      return `BytesN<${type.bytesN().n()}>`;
     case "scSpecTypeUdt":
       return type.udt().name().toString();
     default:

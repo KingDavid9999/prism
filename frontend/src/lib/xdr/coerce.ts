@@ -119,7 +119,18 @@ export function coerceArgInput(
   types: ParsedTypeDef[] = []
 ): xdr.ScVal {
   const t = specType.toLowerCase();
-  if (t === "bool") return nativeToScVal(raw.trim().toLowerCase() === "true");
+  if (t === "bool") {
+    // Anything but true or false is an error. "yes" or "1" would otherwise
+    // quietly become false, and the call would run with the opposite of what
+    // was meant.
+    const word = raw.trim().toLowerCase();
+    if (word !== "true" && word !== "false") {
+      throw new Error(
+        `"${raw.trim()}" is not a valid Bool. Bool takes true or false.`
+      );
+    }
+    return nativeToScVal(word === "true");
+  }
   if (t === "u32")
     return nativeToScVal(
       Number(parseInteger(raw, specType, INTEGER_BOUNDS.u32)),
@@ -177,6 +188,30 @@ export function coerceArgInput(
   if (t === "void") return xdr.ScVal.scvVoid();
 
   const generic = parseGeneric(specType);
+
+  // A fixed-length byte array (a hash, salt or key) is hex, and its length is
+  // part of the type: a value of the wrong size is rejected here, not by the
+  // contract.
+  if (
+    generic?.name === "bytesn" &&
+    generic.args.length === 1 &&
+    /^\d+$/.test(generic.args[0])
+  ) {
+    const length = Number(generic.args[0]);
+    const hex = raw.trim().replace(/^0x/, "");
+    if (!/^([0-9a-fA-F]{2})*$/.test(hex)) {
+      throw new Error(
+        `"${raw.trim()}" is not valid hex. ${specType} takes ${length} bytes as hex, optionally prefixed with 0x.`
+      );
+    }
+    const bytes = Buffer.from(hex, "hex");
+    if (bytes.length !== length) {
+      throw new Error(
+        `${specType} takes exactly ${length} bytes, got ${bytes.length}.`
+      );
+    }
+    return nativeToScVal(bytes, { type: "bytes" });
+  }
 
   // An absent Option is void; anything else is the inner type.
   if (generic?.name === "option" && generic.args.length === 1) {
