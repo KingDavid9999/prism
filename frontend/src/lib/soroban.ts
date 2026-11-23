@@ -410,11 +410,21 @@ export async function getInvocationHistory(
   return (await getInvocationHistoryPage(contractId, { limit })).items;
 }
 
+export interface InvocationHistoryPage
+  extends HistoryPage<InvocationHistoryItem> {
+  /**
+   * Human-readable reason the RPC lookup failed, or null on success. Kept
+   * separate from `items`, as for ContractEventsPage, so an RPC outage is not
+   * reported as a contract with no invocations.
+   */
+  error: string | null;
+}
+
 /** One page of a contract's invocation history. The RPC fallback pages as getContractEventsPage does. */
 export async function getInvocationHistoryPage(
   contractId: string,
   request: PageRequest
-): Promise<HistoryPage<InvocationHistoryItem>> {
+): Promise<InvocationHistoryPage> {
   if (isIndexerConfigured()) {
     const indexed = await getIndexedInvocations(contractId, request);
     return {
@@ -427,11 +437,12 @@ export async function getInvocationHistoryPage(
         successful: i.successful,
       })),
       nextCursor: indexed.nextCursor,
+      error: null,
     };
   }
-  if (request.before) return { items: [], nextCursor: null };
+  if (request.before) return { items: [], nextCursor: null, error: null };
   return {
-    items: await getInvocationHistoryFromRpc(contractId, request.limit),
+    ...(await getInvocationHistoryFromRpc(contractId, request.limit)),
     nextCursor: null,
   };
 }
@@ -439,8 +450,13 @@ export async function getInvocationHistoryPage(
 async function getInvocationHistoryFromRpc(
   contractId: string,
   limit: number
-): Promise<InvocationHistoryItem[]> {
-  const { items: events } = await getContractEventsFromRpc(contractId, 200);
+): Promise<{ items: InvocationHistoryItem[]; error: string | null }> {
+  const { items: events, error } = await getContractEventsFromRpc(
+    contractId,
+    200
+  );
+  // Without this check an RPC outage would look like a contract with no calls.
+  if (error) return { items: [], error };
   const txHashes = Array.from(new Set(events.map((e) => e.txHash))).slice(
     0,
     limit
@@ -473,9 +489,12 @@ async function getInvocationHistoryFromRpc(
     items.push(...results);
   }
 
-  return items
-    .filter((i): i is InvocationHistoryItem => i !== null)
-    .sort((a, b) => b.ledger - a.ledger);
+  return {
+    items: items
+      .filter((i): i is InvocationHistoryItem => i !== null)
+      .sort((a, b) => b.ledger - a.ledger),
+    error: null,
+  };
 }
 
 export async function getInvocationReturnValue(

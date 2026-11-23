@@ -20,8 +20,6 @@ export async function GET(req: Request, { params }: Params) {
   const searchParams = new URL(req.url).searchParams;
   const key = searchParams.get("key");
   const kind = searchParams.get("kind");
-  const durability =
-    searchParams.get("durability") === "temporary" ? "temporary" : "persistent";
 
   if (!key) {
     return NextResponse.json(
@@ -37,6 +35,23 @@ export async function GET(req: Request, { params }: Params) {
       { status: 400 }
     );
   }
+  // Anything else would be read as persistent, so a typo such as "temporay"
+  // would answer 404 and send the caller looking for a missing key.
+  const durabilityParam = searchParams.get("durability");
+  if (
+    durabilityParam !== null &&
+    durabilityParam !== "persistent" &&
+    durabilityParam !== "temporary"
+  ) {
+    return NextResponse.json(
+      {
+        error: `Invalid durability "${durabilityParam}". Use "persistent", "temporary", or leave it out.`,
+      },
+      { status: 400 }
+    );
+  }
+  const durability =
+    durabilityParam === "temporary" ? "temporary" : "persistent";
 
   try {
     // A contract-defined key such as DataKey::Note needs the contract's own

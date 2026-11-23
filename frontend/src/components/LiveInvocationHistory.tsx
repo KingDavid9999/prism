@@ -13,6 +13,8 @@ interface Props {
   contractId: string;
   initialItems: InvocationHistoryItem[];
   initialNextCursor: string | null;
+  /** Set when the initial server-side lookup failed; distinct from an empty result. */
+  initialError?: string | null;
   /** Page size the list is fetched with, used to tell when the RPC fallback is capped. */
   limit: number;
   /** True when no indexer is configured, so the items come from recent RPC events. */
@@ -27,6 +29,7 @@ export default function LiveInvocationHistory({
   contractId,
   initialItems,
   initialNextCursor,
+  initialError = null,
   limit,
   derivedFromEvents,
   title,
@@ -39,6 +42,7 @@ export default function LiveInvocationHistory({
   const [firstPage, setFirstPage] = useState(initialItems);
   const [olderItems, setOlderItems] = useState<InvocationHistoryItem[]>([]);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
+  const [error, setError] = useState<string | null>(initialError);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderError, setOlderError] = useState<string | null>(null);
 
@@ -49,14 +53,19 @@ export default function LiveInvocationHistory({
     return startVisibilityPolling({
       intervalMs,
       refresh: async () => {
-        const result = await pollJson<{
-          invocations: InvocationHistoryItem[];
-          nextCursor?: string | null;
-        }>(`/api/contract/${contractId}/invocations`, backoff);
-        // On failure keep showing the last good data and wait out the pause.
-        if (!result.ok) return result.pauseMs;
-        setFirstPage(result.data.invocations);
-        setNextCursor(result.data.nextCursor ?? null);
+        try {
+          const res = await fetch(`/api/contract/${contractId}/invocations`);
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            setError(data.error ?? "The RPC node rejected the request.");
+            return;
+          }
+          setFirstPage(data.invocations);
+          setNextCursor(data.nextCursor ?? null);
+          setError(null);
+        } catch {
+          setError("The invocations API could not be reached.");
+        }
       },
     });
   }, [contractId, intervalMs]);
@@ -97,7 +106,11 @@ export default function LiveInvocationHistory({
         live
       />
       {children}
-      <InvocationHistory items={items} derivedFromEvents={derivedFromEvents} />
+      <InvocationHistory
+        items={items}
+        derivedFromEvents={derivedFromEvents}
+        error={error}
+      />
       {nextCursor && (
         <div className="mt-3 flex items-center gap-3">
           <button

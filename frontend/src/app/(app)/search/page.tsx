@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import SearchBar from "@/components/SearchBar";
+import { config } from "@/lib/config";
 import { resolveSearchRoute } from "@/lib/search";
 
 interface Props {
@@ -10,7 +11,7 @@ export default function SearchPage({ searchParams }: Props) {
   const query = (searchParams.q ?? "").trim();
 
   if (query) {
-    const route = resolveSearchRoute(query);
+    const route = resolveSearchRoute(query, config.networkPassphrase);
     // Only redirect if the route is not /search itself (avoid infinite loop)
     if (route && !route.startsWith("/search")) redirect(route);
   }
