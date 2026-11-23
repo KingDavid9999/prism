@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { Account, MuxedAccount, StrKey } from "@stellar/stellar-sdk";
 import { resolveSearchRoute } from "./search";
 
 const TX = "a".repeat(64);
 const CONTRACT = "C" + "A".repeat(55);
 const ACCOUNT = "G" + "A".repeat(55);
+const MUXED_BASE = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 7));
+const MUXED = new MuxedAccount(new Account(MUXED_BASE, "0"), "1234").accountId();
 
 describe("resolveSearchRoute", () => {
   it("routes a 64-char hex string to /tx", () => {
@@ -23,6 +26,16 @@ describe("resolveSearchRoute", () => {
 
   it("routes a G-strkey to /account", () => {
     expect(resolveSearchRoute(ACCOUNT)).toBe(`/account/${ACCOUNT}`);
+  });
+
+  it("routes a valid M-address to its base G account with the muxed ID", () => {
+    expect(resolveSearchRoute(MUXED)).toBe(`/account/${MUXED_BASE}?muxed=1234`);
+  });
+
+  it("does not route a corrupted M-address as an account", () => {
+    const last = MUXED.at(-1) === "A" ? "B" : "A";
+    const bad = MUXED.slice(0, -1) + last;
+    expect(resolveSearchRoute(bad)).toBe(`/search?q=${encodeURIComponent(bad)}`);
   });
 
   it("routes a decimal string to /ledger", () => {
