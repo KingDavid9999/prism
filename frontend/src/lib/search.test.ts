@@ -10,6 +10,13 @@ describe("resolveSearchRoute", () => {
     expect(resolveSearchRoute(TX)).toBe(`/tx/${TX}`);
   });
 
+  it("routes an upper-case hash to /tx in lowercase", () => {
+    expect(resolveSearchRoute("A".repeat(64))).toBe(`/tx/${"a".repeat(64)}`);
+    expect(resolveSearchRoute("AbCdEf" + "0".repeat(58))).toBe(
+      `/tx/abcdef${"0".repeat(58)}`
+    );
+  });
+
   it("routes a C-strkey to /contract", () => {
     expect(resolveSearchRoute(CONTRACT)).toBe(`/contract/${CONTRACT}`);
   });

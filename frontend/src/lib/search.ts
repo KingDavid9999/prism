@@ -4,7 +4,7 @@
  * call this so they always agree on routing.
  *
  * Formats recognised:
- *  - Transaction hash: 64 lowercase hex characters
+ *  - Transaction hash: 64 hex characters, in either case (routed in lowercase)
  *  - Contract ID: Soroban strkey — starts with C, 56 base-32 chars total
  *  - Account address: ED25519 strkey — starts with G, 56 base-32 chars total
  *  - Ledger sequence: one or more decimal digits
@@ -13,7 +13,8 @@ export function resolveSearchRoute(raw: string): string | null {
   const q = raw.trim();
   if (!q) return null;
 
-  if (/^[0-9a-fA-F]{64}$/.test(q)) return `/tx/${q}`;
+  // Horizon only knows lowercase hashes, so an upper-case paste must be folded.
+  if (/^[0-9a-fA-F]{64}$/.test(q)) return `/tx/${q.toLowerCase()}`;
   if (/^C[A-Z2-7]{55}$/.test(q)) return `/contract/${q}`;
   if (/^G[A-Z2-7]{55}$/.test(q)) return `/account/${q}`;
   if (/^\d+$/.test(q)) return `/ledger/${q}`;
