@@ -3,6 +3,7 @@ import { getIndexedContractsByCreator } from "@/lib/indexed-db";
 import CopyButton from "@/components/CopyButton";
 import { balanceLabel, formatNumber, shortHash } from "@/lib/format";
 import { splitMuxedAddress } from "@/lib/muxed";
+import { isAccountId } from "@/lib/strkey-validation";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
@@ -17,6 +18,10 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `Account ${shortHash(params.id, 6)}`;
+  // Only a valid address is worth a Horizon request; anything else 404s in the page.
+  if (!isAccountId(params.id)) {
+    return { title, description: `Stellar account ${params.id}.` };
+  }
   try {
     const account = await getAccount(params.id);
     const xlm = account.balances.find((b) => b.assetType === "native");
@@ -59,6 +64,8 @@ export default async function AccountPage({ params, searchParams }: Props) {
   // A muxed address shows the base account, with its ID carried in the query.
   const muxed = splitMuxedAddress(params.id);
   if (muxed) redirect(`/account/${muxed.account}?muxed=${muxed.id}`);
+  // Anything that isn't a valid address is not found, and never reaches Horizon.
+  if (!isAccountId(params.id)) notFound();
 
   const muxedId = /^\d+$/.test(searchParams?.muxed ?? "")
     ? searchParams?.muxed
