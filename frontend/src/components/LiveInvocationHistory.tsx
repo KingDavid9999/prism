@@ -6,6 +6,7 @@ import InvocationHistory from "./InvocationHistory";
 import SectionHeader from "./SectionHeader";
 import { appendUnique, mergeVisible } from "@/lib/list-pagination";
 import { startVisibilityPolling } from "@/lib/visibility-poll";
+import { createPollBackoff, pollJson } from "@/lib/poll-backoff";
 import type { InvocationHistoryItem } from "@/types";
 
 interface Props {
@@ -44,18 +45,18 @@ export default function LiveInvocationHistory({
   const items = mergeVisible(firstPage, olderItems, (item) => item.txHash);
 
   useEffect(() => {
+    const backoff = createPollBackoff(intervalMs);
     return startVisibilityPolling({
       intervalMs,
       refresh: async () => {
-        try {
-          const res = await fetch(`/api/contract/${contractId}/invocations`);
-          if (!res.ok) return;
-          const data = await res.json();
-          setFirstPage(data.invocations);
-          setNextCursor(data.nextCursor ?? null);
-        } catch {
-          // keep showing the last good data
-        }
+        const result = await pollJson<{
+          invocations: InvocationHistoryItem[];
+          nextCursor?: string | null;
+        }>(`/api/contract/${contractId}/invocations`, backoff);
+        // On failure keep showing the last good data and wait out the pause.
+        if (!result.ok) return result.pauseMs;
+        setFirstPage(result.data.invocations);
+        setNextCursor(result.data.nextCursor ?? null);
       },
     });
   }, [contractId, intervalMs]);

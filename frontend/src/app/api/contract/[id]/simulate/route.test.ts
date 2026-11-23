@@ -236,3 +236,164 @@ describe("POST /api/contract/[id]/simulate — argument types from the spec (#23
     expect(simulateInvocation).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/contract/[id]/simulate — argument shape (#232)", () => {
+  const SHAPE_ERROR = "must be { value: string, type?: string }";
+
+  it.each([
+    ["null", [null]],
+    ["a bare string", ["42"]],
+    ["a missing value", [{ type: "u32" }]],
+    ["a non-string value", [{ value: 1, type: "u32" }]],
+    ["a non-string type", [{ value: "1", type: 32 }]],
+  ])("returns 400 naming the index when an argument is %s", async (_, args) => {
+    const res = await POST(
+      makeRequest({ functionName: "transfer", args }),
+      params
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe(`args[0] ${SHAPE_ERROR}`);
+    expect(coerceArgInput).not.toHaveBeenCalled();
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
+
+  it("names the first malformed index, not the first argument", async () => {
+    const res = await POST(
+      makeRequest({
+        functionName: "transfer",
+        args: [{ value: "1", type: "u32" }, { type: "u32" }],
+      }),
+      params
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(`args[1] ${SHAPE_ERROR}`);
+  });
+
+  it("lets a value without a type through the shape check", async () => {
+    vi.mocked(getContractWasmInfo).mockResolvedValue(null);
+
+    const res = await POST(
+      makeRequest({ functionName: "hello", args: [{ value: "x" }] }),
+      params
+    );
+    // The shape is fine; the missing type is caught later, since no signature is known.
+    const json = await res.json();
+    expect(json.error).toMatch(/args\[0\] needs a type/);
+    expect(json.error).not.toMatch(/must be/);
+  });
+});
+
+describe("POST /api/contract/[id]/simulate — declared functions (#231)", () => {
+  const spec = {
+    size: 100,
+    events: [],
+    types: [],
+    functions: [
+      {
+        name: "transfer",
+        inputs: [
+          { name: "from", type: "address" },
+          { name: "amount", type: "u64" },
+        ],
+        outputs: [],
+      },
+      {
+        name: "balance",
+        inputs: [{ name: "id", type: "address" }],
+        outputs: ["i128"],
+      },
+    ],
+  };
+
+  it("returns 400 for a function the contract does not declare, listing the declared ones", async () => {
+    vi.mocked(getContractWasmInfo).mockResolvedValue(spec);
+
+    const res = await POST(
+      makeRequest({ functionName: "mint", args: [] }),
+      params
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe(
+      'Unknown function "mint". The contract declares: transfer, balance'
+    );
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when too few arguments are given", async () => {
+    vi.mocked(getContractWasmInfo).mockResolvedValue(spec);
+
+    const res = await POST(
+      makeRequest({
+        functionName: "transfer",
+        args: [{ value: "GABC", type: "address" }],
+      }),
+      params
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(
+      "transfer takes 2 argument(s), but 1 were given"
+    );
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when too many arguments are given", async () => {
+    vi.mocked(getContractWasmInfo).mockResolvedValue(spec);
+
+    const res = await POST(
+      makeRequest({
+        functionName: "balance",
+        args: [
+          { value: "GABC", type: "address" },
+          { value: "1", type: "u32" },
+        ],
+      }),
+      params
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(
+      "balance takes 1 argument(s), but 2 were given"
+    );
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
+
+  it("forwards a call whose argument count matches the spec", async () => {
+    vi.mocked(getContractWasmInfo).mockResolvedValue(spec);
+    vi.mocked(simulateInvocation).mockResolvedValue({ success: true });
+
+    const res = await POST(
+      makeRequest({
+        functionName: "transfer",
+        args: [
+          { value: "GABC", type: "address" },
+          { value: "5", type: "u64" },
+        ],
+      }),
+      params
+    );
+    expect(res.status).toBe(200);
+    expect(simulateInvocation).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reject on the spec when it declares no functions", async () => {
+    vi.mocked(getContractWasmInfo).mockResolvedValue({
+      size: 100,
+      events: [],
+      types: [],
+      functions: [],
+    });
+    vi.mocked(simulateInvocation).mockResolvedValue({ success: true });
+
+    const res = await POST(
+      makeRequest({ functionName: "anything", args: [] }),
+      params
+    );
+    expect(res.status).toBe(200);
+    expect(simulateInvocation).toHaveBeenCalledWith(
+      CONTRACT_ID,
+      "anything",
+      []
+    );
+  });
+});
