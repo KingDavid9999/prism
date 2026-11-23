@@ -2,15 +2,30 @@ import Link from "next/link";
 import type { InvocationHistoryItem } from "@/types";
 import { shortHash } from "@/lib/format";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import RelativeTime from "@/components/RelativeTime";
 
 interface Props {
   items: InvocationHistoryItem[];
   /** True when no indexer is configured, so the items come from recent RPC events. */
   derivedFromEvents: boolean;
+  /** Set when the lookup failed; distinct from a successful, empty result. */
+  error?: string | null;
 }
 
-export default function InvocationHistory({ items, derivedFromEvents }: Props) {
+export default function InvocationHistory({
+  items,
+  derivedFromEvents,
+  error = null,
+}: Props) {
+  if (error) {
+    return (
+      <ErrorState>
+        Couldn&apos;t load invocations from the RPC node. {error}
+      </ErrorState>
+    );
+  }
+
   const notice = derivedFromEvents && (
     <p className="text-xs text-prism-muted mb-3">
       No indexer is configured, so these invocations are derived from the

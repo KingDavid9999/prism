@@ -31,6 +31,10 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+// HSTS pins browsers to HTTPS for a year, so it is opt-in and production-only.
+// Leave it off for any deployment that is still reachable over plain HTTP.
+const hstsEnabled = !isDev && ["1", "true"].includes(process.env.ENABLE_HSTS);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -43,6 +47,21 @@ const nextConfig = {
           { key: "Content-Security-Policy", value: contentSecurityPolicy },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Stop browsers from sniffing a response into a different MIME type.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Turn off browser features Prism never uses.
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+          },
+          ...(hstsEnabled
+            ? [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=31536000; includeSubDomains",
+                },
+              ]
+            : []),
         ],
       },
     ];

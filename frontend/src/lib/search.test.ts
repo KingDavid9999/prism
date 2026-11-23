@@ -8,6 +8,10 @@ const ACCOUNT = "G" + "A".repeat(55);
 const MUXED_BASE = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 7));
 const MUXED = new MuxedAccount(new Account(MUXED_BASE, "0"), "1234").accountId();
 
+const TESTNET = "Test SDF Network ; September 2015";
+const MAINNET = "Public Global Stellar Network ; September 2015";
+const ISSUER = Keypair.random().publicKey();
+
 describe("resolveSearchRoute", () => {
   it("routes a 64-char hex string to /tx", () => {
     expect(resolveSearchRoute(TX)).toBe(`/tx/${TX}`);
@@ -68,5 +72,51 @@ describe("resolveSearchRoute", () => {
   it("returns null for empty input", () => {
     expect(resolveSearchRoute("")).toBeNull();
     expect(resolveSearchRoute("   ")).toBeNull();
+  });
+});
+
+describe("resolveSearchRoute for assets", () => {
+  it("routes native and XLM to the XLM asset contract on the configured network", () => {
+    const xlm = Asset.native().contractId(TESTNET);
+    expect(xlm).toMatch(/^C[A-Z2-7]{55}$/);
+    expect(resolveSearchRoute("native", TESTNET)).toBe(`/contract/${xlm}`);
+    expect(resolveSearchRoute("XLM", TESTNET)).toBe(`/contract/${xlm}`);
+  });
+
+  it("routes CODE:ISSUER to that asset's contract", () => {
+    const usdc = new Asset("USDC", ISSUER).contractId(TESTNET);
+    expect(resolveSearchRoute(`USDC:${ISSUER}`, TESTNET)).toBe(
+      `/contract/${usdc}`
+    );
+  });
+
+  it("gives a different contract for the same asset on another network", () => {
+    expect(resolveSearchRoute("native", TESTNET)).not.toBe(
+      resolveSearchRoute("native", MAINNET)
+    );
+  });
+
+  it("sends asset queries to /search when no passphrase is given", () => {
+    const query = `USDC:${ISSUER}`;
+    expect(resolveSearchRoute("native")).toBe("/search?q=native");
+    expect(resolveSearchRoute(query)).toBe(
+      `/search?q=${encodeURIComponent(query)}`
+    );
+  });
+
+  it("falls through to /search for an invalid code or issuer", () => {
+    const badQueries = [
+      "USDC:GBAD",
+      `TOO-LONG-CODE:${ISSUER}`,
+      `USDC:${ISSUER.slice(0, -1)}`,
+      `:${ISSUER}`,
+      "USDC:",
+      "a:b:c",
+    ];
+    for (const bad of badQueries) {
+      expect(resolveSearchRoute(bad, TESTNET)).toBe(
+        `/search?q=${encodeURIComponent(bad)}`
+      );
+    }
   });
 });

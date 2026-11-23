@@ -12,7 +12,7 @@ interface Params {
 }
 
 export async function GET(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, { scope: "contract-invocations" });
+  const limited = await rateLimitRequest(req, { scope: "contract-invocations" });
   if (limited) return limited;
   if (!isContractId(params.id))
     return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
@@ -21,9 +21,15 @@ export async function GET(req: Request, { params }: Params) {
   if (!request)
     return NextResponse.json({ error: "Invalid cursor" }, { status: 400 });
 
-  const { items, nextCursor } = await getInvocationHistoryPage(
+  const { items, nextCursor, error } = await getInvocationHistoryPage(
     params.id,
     request
   );
-  return NextResponse.json({ invocations: items, nextCursor });
+  if (error) {
+    return NextResponse.json(
+      { invocations: [], nextCursor: null, error },
+      { status: 502 }
+    );
+  }
+  return NextResponse.json({ invocations: items, nextCursor, error: null });
 }

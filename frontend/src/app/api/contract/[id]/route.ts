@@ -11,7 +11,7 @@ interface Params {
 }
 
 export async function GET(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, { scope: "contract-info" });
+  const limited = await rateLimitRequest(req, { scope: "contract-info" });
   if (limited) return limited;
   if (!isContractId(params.id))
     return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });

@@ -118,4 +118,46 @@ describe("startVisibilityPolling", () => {
       globals.document = original;
     }
   });
+
+  it("waits at least the pause a refresh returns before refreshing again", () => {
+    const refresh = vi.fn().mockReturnValueOnce(3000);
+    const stop = startVisibilityPolling({
+      intervalMs: 1000,
+      refresh,
+      isHidden: () => false,
+      addVisibilityListener: () => {},
+      removeVisibilityListener: () => {},
+    });
+
+    vi.advanceTimersByTime(1000); // refresh returns a 3 s pause
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(2999); // t = 3999 ms: still paused
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1); // t = 4000 ms: pause elapsed
+    expect(refresh).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it("applies a pause that a refresh returns asynchronously", async () => {
+    const refresh = vi.fn().mockResolvedValueOnce(2000);
+    const stop = startVisibilityPolling({
+      intervalMs: 1000,
+      refresh,
+      isHidden: () => false,
+      addVisibilityListener: () => {},
+      removeVisibilityListener: () => {},
+    });
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000); // t = 2000 ms: still paused
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000); // t = 3000 ms: resumes
+    expect(refresh).toHaveBeenCalledTimes(2);
+    stop();
+  });
 });

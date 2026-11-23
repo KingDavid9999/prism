@@ -117,6 +117,7 @@ export default async function ContractPage({ params }: Props) {
             contractId={contractId}
             initialItems={invocationsPage.items}
             initialNextCursor={invocationsPage.nextCursor}
+            initialError={invocationsPage.error}
             limit={INVOCATION_PAGE_SIZE}
             derivedFromEvents={rpcFallback}
             title="Recent Invocations"

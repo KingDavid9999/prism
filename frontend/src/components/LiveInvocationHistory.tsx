@@ -6,12 +6,15 @@ import InvocationHistory from "./InvocationHistory";
 import SectionHeader from "./SectionHeader";
 import { appendUnique, mergeVisible } from "@/lib/list-pagination";
 import { startVisibilityPolling } from "@/lib/visibility-poll";
+import { createPollBackoff, pollJson } from "@/lib/poll-backoff";
 import type { InvocationHistoryItem } from "@/types";
 
 interface Props {
   contractId: string;
   initialItems: InvocationHistoryItem[];
   initialNextCursor: string | null;
+  /** Set when the initial server-side lookup failed; distinct from an empty result. */
+  initialError?: string | null;
   /** Page size the list is fetched with, used to tell when the RPC fallback is capped. */
   limit: number;
   /** True when no indexer is configured, so the items come from recent RPC events. */
@@ -26,6 +29,7 @@ export default function LiveInvocationHistory({
   contractId,
   initialItems,
   initialNextCursor,
+  initialError = null,
   limit,
   derivedFromEvents,
   title,
@@ -38,23 +42,29 @@ export default function LiveInvocationHistory({
   const [firstPage, setFirstPage] = useState(initialItems);
   const [olderItems, setOlderItems] = useState<InvocationHistoryItem[]>([]);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
+  const [error, setError] = useState<string | null>(initialError);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [olderError, setOlderError] = useState<string | null>(null);
 
   const items = mergeVisible(firstPage, olderItems, (item) => item.txHash);
 
   useEffect(() => {
+    const backoff = createPollBackoff(intervalMs);
     return startVisibilityPolling({
       intervalMs,
       refresh: async () => {
         try {
           const res = await fetch(`/api/contract/${contractId}/invocations`);
-          if (!res.ok) return;
           const data = await res.json();
+          if (!res.ok || data.error) {
+            setError(data.error ?? "The RPC node rejected the request.");
+            return;
+          }
           setFirstPage(data.invocations);
           setNextCursor(data.nextCursor ?? null);
+          setError(null);
         } catch {
-          // keep showing the last good data
+          setError("The invocations API could not be reached.");
         }
       },
     });
@@ -96,7 +106,11 @@ export default function LiveInvocationHistory({
         live
       />
       {children}
-      <InvocationHistory items={items} derivedFromEvents={derivedFromEvents} />
+      <InvocationHistory
+        items={items}
+        derivedFromEvents={derivedFromEvents}
+        error={error}
+      />
       {nextCursor && (
         <div className="mt-3 flex items-center gap-3">
           <button
