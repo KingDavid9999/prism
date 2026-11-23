@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NavLinks from "./NavLinks";
 import SearchBar from "./SearchBar";
 import { config, type StellarNetwork } from "@/lib/config";
 
@@ -35,15 +36,7 @@ export default function Navbar() {
           <SearchBar />
         </div>
         <div className="flex gap-5 text-sm text-prism-muted shrink-0">
-          <Link href="/explorer" className="hover:text-prism-strong transition">
-            Home
-          </Link>
-          <Link href="/xdr" className="hover:text-prism-strong transition">
-            XDR
-          </Link>
-          <Link href="/docs" className="hover:text-prism-strong transition">
-            API
-          </Link>
+          <NavLinks />
           <a
             href="https://github.com/prism-explorer/prism"
             target="_blank"
