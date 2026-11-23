@@ -103,4 +103,41 @@ describe("GET /api/contract/[id]/storage", () => {
     const res = await GET(makeRequest("key=Admin&kind=symbol"), params);
     expect(res.status).toBe(404);
   });
+
+  it("looks up persistent storage when durability is left out", async () => {
+    await GET(makeRequest("key=Admin&kind=symbol"), params);
+    expect(lookupStorageEntry).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "persistent"
+    );
+  });
+
+  it("accepts an explicit persistent durability", async () => {
+    const res = await GET(
+      makeRequest("key=Admin&kind=symbol&durability=persistent"),
+      params
+    );
+    expect(res.status).toBe(200);
+    expect(lookupStorageEntry).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "persistent"
+    );
+  });
+
+  it.each(["temporay", "Temporary", ""])(
+    'rejects durability "%s" with 400 and names the allowed values',
+    async (value) => {
+      const res = await GET(
+        makeRequest(`key=Admin&kind=symbol&durability=${value}`),
+        params
+      );
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain('"persistent"');
+      expect(body.error).toContain('"temporary"');
+      expect(lookupStorageEntry).not.toHaveBeenCalled();
+    }
+  );
 });
