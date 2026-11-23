@@ -235,6 +235,22 @@ describe("POST /api/contract/[id]/simulate — argument types from the spec (#23
     expect(json.error).toMatch(/args\[0\] needs a type/);
     expect(simulateInvocation).not.toHaveBeenCalled();
   });
+
+  // Issue #228 — the route and the action share one argument-count cap.
+  it("rejects more arguments than the shared cap, before reading the contract", async () => {
+    const args = Array.from({ length: 33 }, () => ({ value: "1", type: "u32" }));
+
+    const res = await POST(
+      makeRequest({ functionName: "bump", args }),
+      params
+    );
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toMatch(/at most 32 arguments, but 33 were given/);
+    expect(getContractWasmInfo).not.toHaveBeenCalled();
+    expect(simulateInvocation).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/contract/[id]/simulate — argument shape (#232)", () => {

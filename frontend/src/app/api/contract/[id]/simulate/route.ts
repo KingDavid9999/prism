@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { getContractWasmInfo, simulateInvocation } from "@/lib/soroban";
 import { coerceArgInput } from "@/lib/xdr";
 import { rateLimitRequest } from "@/lib/rate-limit";
+import {
+  MAX_SIMULATE_BYTES,
+  simulateInputError,
+} from "@/lib/simulate-limits";
 import type { ContractFunctionSpec, ContractTypeDef } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-/** A simulation is a function name and a few short arguments; anything much larger isn't a real call. */
-const MAX_BODY_BYTES = 16 * 1024;
 
 interface Params {
   params: { id: string };
@@ -106,13 +107,13 @@ function argumentType(
 }
 
 export async function POST(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, {
+  const limited = await rateLimitRequest(req, {
     scope: "contract-simulate",
     max: 10,
   });
   if (limited) return limited;
 
-  const raw = await readCappedBody(req, MAX_BODY_BYTES);
+  const raw = await readCappedBody(req, MAX_SIMULATE_BYTES);
   if (raw === null) {
     return NextResponse.json(
       { error: "Request body too large" },
@@ -143,8 +144,26 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
-  const badIndex = (args as unknown[]).findIndex((a) => !isArgShape(a));
-  if (badIndex !== -1) {
+  const tooLarge = simulateInputError(args, body.types ?? []);
+  if (tooLarge) {
+    return NextResponse.json(
+      { success: false, error: tooLarge },
+      { status: 400 }
+    );
+  }
+
+  // The contract's spec supplies the declared signature, which types any
+  // argument the caller leaves untyped and checks the ones they do type. It is
+  // read when there are arguments to type, and also for the type definitions
+  // when the caller hasn't supplied them.
+  let types: ContractTypeDef[] = body.types ?? [];
+  let declared: ContractFunctionSpec | undefined;
+  if (args.length > 0 || types.length === 0) {
+    const wasm = await getContractWasmInfo(params.id);
+    if (types.length === 0) types = wasm?.types ?? [];
+    declared = wasm?.functions.find((f) => f.name === functionName);
+  }
+  if (declared && args.length > declared.inputs.length) {
     return NextResponse.json(
       {
         error: `args[${badIndex}] must be { value: string, type?: string }`,

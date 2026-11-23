@@ -9,6 +9,8 @@ vi.mock("./xdr", () => ({
   coerceArgInput: vi.fn(),
   decodeAnyXdr: vi.fn(),
 }));
+// Server actions read the caller's headers; there is no request in a unit test.
+vi.mock("next/headers", () => ({ headers: () => new Headers() }));
 
 import { lookupStorageKeyAction } from "./actions";
 import { lookupStorageEntry, parseStorageKeyInput } from "./soroban";

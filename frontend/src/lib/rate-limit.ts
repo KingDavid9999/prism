@@ -42,22 +42,80 @@ export interface RateLimitStore {
   ): Promise<{ count: number; ttlMs: number }>;
 }
 
+/** Longest a Redis connect or command may take before the request gives up on it. */
+const REDIS_TIMEOUT_MS = 500;
+/** After a failed connect, skip Redis this long so requests don't each wait out the timeout. */
+const REDIS_RETRY_AFTER_MS = 10_000;
+
+/** Rejects if `work` hasn't settled within `ms`, so a stalled Redis can't hold a request open. */
+function withTimeout<T>(
+  work: Promise<T>,
+  ms: number,
+  what: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${what} timed out after ${ms} ms`)),
+      ms
+    );
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
 /**
  * Redis-backed store. Two instances sharing the same Redis enforce one
  * combined limit. Selected automatically when RATE_LIMIT_REDIS_URL is set.
+ *
+ * Connects and commands are time-limited. When Redis can't be reached, the
+ * store rejects, and rateLimitAsync answers from the in-memory limiter.
  */
 export class RedisRateLimitStore implements RateLimitStore {
   private client: import("ioredis").Redis | null = null;
+  private connecting: Promise<import("ioredis").Redis> | null = null;
+  private unavailableUntil = 0;
 
   constructor(private readonly url: string) {}
 
-  private async getClient(): Promise<import("ioredis").Redis> {
-    if (!this.client) {
-      const { default: Redis } = await import("ioredis");
-      this.client = new Redis(this.url, { lazyConnect: true });
-      await this.client.connect();
+  private getClient(): Promise<import("ioredis").Redis> {
+    if (this.client) return Promise.resolve(this.client);
+    if (Date.now() < this.unavailableUntil) {
+      return Promise.reject(
+        new Error("Redis is unavailable after a recent failed connect")
+      );
     }
-    return this.client;
+    this.connecting ??= this.connect().then(
+      (client) => {
+        this.client = client;
+        this.connecting = null;
+        return client;
+      },
+      (err: unknown) => {
+        this.connecting = null;
+        this.unavailableUntil = Date.now() + REDIS_RETRY_AFTER_MS;
+        throw err;
+      }
+    );
+    return this.connecting;
+  }
+
+  private async connect(): Promise<import("ioredis").Redis> {
+    const { default: Redis } = await import("ioredis");
+    const client = new Redis(this.url, {
+      lazyConnect: true,
+      connectTimeout: REDIS_TIMEOUT_MS,
+      commandTimeout: REDIS_TIMEOUT_MS,
+      maxRetriesPerRequest: 1,
+      // Fail a command at once while disconnected rather than queueing it.
+      enableOfflineQueue: false,
+    });
+    try {
+      await withTimeout(client.connect(), REDIS_TIMEOUT_MS, "Redis connect");
+    } catch (err) {
+      client.disconnect();
+      throw err;
+    }
+    return client;
   }
 
   async increment(
@@ -67,13 +125,17 @@ export class RedisRateLimitStore implements RateLimitStore {
     const redis = await this.getClient();
     const windowSec = Math.ceil(windowMs / 1000);
     // Atomic INCR + EXPIRE: the Lua script ensures the TTL is set exactly once.
-    const result = (await redis.eval(
-      `local c = redis.call('INCR', KEYS[1])
+    const result = (await withTimeout(
+      redis.eval(
+        `local c = redis.call('INCR', KEYS[1])
        if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
        return {c, redis.call('PTTL', KEYS[1])}`,
-      1,
-      key,
-      String(windowSec)
+        1,
+        key,
+        String(windowSec)
+      ),
+      REDIS_TIMEOUT_MS,
+      "Redis eval"
     )) as [number, number];
     return { count: result[0], ttlMs: Math.max(0, result[1]) };
   }
@@ -118,10 +180,26 @@ export function rateLimit(
   return { success: true, remaining: max - bucket.count };
 }
 
+/** Logs a failing shared store at most once a minute, so an outage doesn't flood the logs. */
+const STORE_ERROR_LOG_INTERVAL_MS = 60_000;
+let lastStoreErrorLogAt = 0;
+
+function logStoreFailure(err: unknown): void {
+  const now = Date.now();
+  if (now - lastStoreErrorLogAt < STORE_ERROR_LOG_INTERVAL_MS) return;
+  lastStoreErrorLogAt = now;
+  console.warn(
+    "[rate-limit] shared store unavailable; limiting from memory:",
+    err instanceof Error ? err.message : err
+  );
+}
+
 /**
  * Async rate-limit check that works with any RateLimitStore, including Redis.
  * Falls back to the in-memory rateLimit() when no store is provided and
- * RATE_LIMIT_REDIS_URL is not set.
+ * RATE_LIMIT_REDIS_URL is not set. It also falls back when the store fails,
+ * so an unreachable Redis still answers each request and limits it per
+ * instance rather than failing with a 500 (#226).
  */
 export async function rateLimitAsync(
   key: string,
@@ -130,7 +208,14 @@ export async function rateLimitAsync(
   store: RateLimitStore | null = rateLimitStore
 ): Promise<RateLimitResult> {
   if (!store) return rateLimit(key, max, windowMs);
-  const { count, ttlMs } = await store.increment(key, windowMs);
+  let count: number;
+  let ttlMs: number;
+  try {
+    ({ count, ttlMs } = await store.increment(key, windowMs));
+  } catch (err) {
+    logStoreFailure(err);
+    return rateLimit(key, max, windowMs);
+  }
   if (count > max) {
     return {
       success: false,
@@ -157,13 +242,23 @@ export async function rateLimitAsync(
  *     `TRUST_PROXY=1` to get per-IP bucketing in production.
  */
 export function getClientKey(req: Request): string {
+  return clientKeyFromHeaders(req.headers);
+}
+
+/**
+ * The same key as getClientKey, for callers that have request headers but no
+ * Request, such as server actions (#227).
+ */
+export function clientKeyFromHeaders(headers: {
+  get(name: string): string | null;
+}): string {
   const trustProxy =
     process.env.TRUST_PROXY !== undefined &&
     process.env.TRUST_PROXY !== "" &&
     process.env.TRUST_PROXY !== "false";
 
   if (trustProxy) {
-    const forwarded = req.headers.get("x-forwarded-for");
+    const forwarded = headers.get("x-forwarded-for");
     const ip = forwarded?.split(",")[0]?.trim();
     if (ip) return ip;
   }
@@ -177,14 +272,16 @@ export function getClientKey(req: Request): string {
 /**
  * HTTP-level helper: returns a 429 NextResponse if the caller is over the
  * limit, or null if the request should proceed.
+ *
+ * Goes through rateLimitAsync, so every route shares the configured store
+ * (Redis when RATE_LIMIT_REDIS_URL is set). `store` overrides that store and
+ * exists for tests.
  */
-export function rateLimitRequest(
+export async function rateLimitRequest(
   req: Request,
-  opts?: { scope?: string; max?: number }
-): NextResponse | null {
-  const max = opts?.max ?? DEFAULT_MAX_PER_WINDOW;
-  const key = `${opts?.scope ?? "default"}:${getClientKey(req)}`;
-  const result = rateLimit(key, max, WINDOW_MS);
+  opts?: RateLimitOptions
+): Promise<NextResponse | null> {
+  const result = await checkRateLimit(getClientKey(req), opts);
 
   if (!result.success) {
     return NextResponse.json(
@@ -197,4 +294,41 @@ export function rateLimitRequest(
   }
 
   return null;
+}
+
+/**
+ * Rate-limit check for a server action, which receives request headers rather
+ * than a Request. Returns the message to show when the caller is over the
+ * limit, or null when the call may go ahead (#227).
+ *
+ * Give an action the scope and max of the route it mirrors, so both draw on
+ * the same allowance.
+ */
+export async function rateLimitAction(
+  headers: { get(name: string): string | null },
+  opts?: RateLimitOptions
+): Promise<string | null> {
+  const result = await checkRateLimit(clientKeyFromHeaders(headers), opts);
+  if (result.success) return null;
+  return `Rate limit exceeded. Try again in ${result.retryAfter ?? 60} seconds.`;
+}
+
+interface RateLimitOptions {
+  scope?: string;
+  max?: number;
+  store?: RateLimitStore | null;
+}
+
+/** Counts one call against the caller's bucket for `opts.scope`. */
+function checkRateLimit(
+  clientKey: string,
+  opts?: RateLimitOptions
+): Promise<RateLimitResult> {
+  const max = opts?.max ?? DEFAULT_MAX_PER_WINDOW;
+  return rateLimitAsync(
+    `${opts?.scope ?? "default"}:${clientKey}`,
+    max,
+    WINDOW_MS,
+    opts?.store
+  );
 }
