@@ -2,18 +2,26 @@ import { getAccount, isNotFound } from "@/lib/horizon";
 import { getIndexedContractsByCreator } from "@/lib/indexed-db";
 import CopyButton from "@/components/CopyButton";
 import { balanceLabel, formatNumber, shortHash } from "@/lib/format";
+import { splitMuxedAddress } from "@/lib/muxed";
+import { isAccountId } from "@/lib/strkey-validation";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
 interface Props {
   params: { id: string };
+  /** `muxed` carries the muxed ID when the page was reached from an M… address. */
+  searchParams?: { muxed?: string };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `Account ${shortHash(params.id, 6)}`;
+  // Only a valid address is worth a Horizon request; anything else 404s in the page.
+  if (!isAccountId(params.id)) {
+    return { title, description: `Stellar account ${params.id}.` };
+  }
   try {
     const account = await getAccount(params.id);
     const xlm = account.balances.find((b) => b.assetType === "native");
@@ -52,7 +60,17 @@ function DetailRow({ label, value, mono }: DetailRowProps) {
   );
 }
 
-export default async function AccountPage({ params }: Props) {
+export default async function AccountPage({ params, searchParams }: Props) {
+  // A muxed address shows the base account, with its ID carried in the query.
+  const muxed = splitMuxedAddress(params.id);
+  if (muxed) redirect(`/account/${muxed.account}?muxed=${muxed.id}`);
+  // Anything that isn't a valid address is not found, and never reaches Horizon.
+  if (!isAccountId(params.id)) notFound();
+
+  const muxedId = /^\d+$/.test(searchParams?.muxed ?? "")
+    ? searchParams?.muxed
+    : undefined;
+
   let account;
   let deployedContracts;
   try {
@@ -83,6 +101,7 @@ export default async function AccountPage({ params }: Props) {
       </div>
 
       <div className="rounded-xl border border-prism-border bg-prism-surface p-6 space-y-4 mb-8">
+        {muxedId && <DetailRow label="Muxed ID" value={muxedId} mono />}
         <DetailRow label="Sequence" value={account.sequence} mono />
         <DetailRow label="Subentries" value={String(account.subentryCount)} />
         <DetailRow label="Signers" value={String(account.signerCount)} />

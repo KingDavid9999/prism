@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { getContractWasmInfo, simulateInvocation } from "@/lib/soroban";
 import { coerceArgInput } from "@/lib/xdr";
 import { rateLimitRequest } from "@/lib/rate-limit";
-import {
-  MAX_SIMULATE_BYTES,
-  simulateInputError,
-} from "@/lib/simulate-limits";
+import { isContractId } from "@/lib/strkey-validation";
 import type { ContractFunctionSpec, ContractTypeDef } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -112,6 +109,8 @@ export async function POST(req: Request, { params }: Params) {
     max: 10,
   });
   if (limited) return limited;
+  if (!isContractId(params.id))
+    return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
 
   const raw = await readCappedBody(req, MAX_SIMULATE_BYTES);
   if (raw === null) {

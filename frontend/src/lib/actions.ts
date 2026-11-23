@@ -12,6 +12,7 @@ import {
 import { rateLimitAction } from "./rate-limit";
 import { simulateInputError } from "./simulate-limits";
 import type { ContractTypeDef, StorageEntry } from "@/types";
+import { isContractId } from "./strkey-validation";
 
 // Server actions are public POST endpoints, so each one is rate-limited like
 // the route it mirrors (#227). The scopes match those routes, so a simulation
@@ -27,10 +28,7 @@ export async function lookupStorageKeyAction(
   // DataKey::Note, exactly as simulateInvocationAction does for arguments.
   types: ContractTypeDef[] = []
 ): Promise<StorageEntry | { error: string }> {
-  const limited = await rateLimitAction(headers(), {
-    scope: "contract-storage",
-  });
-  if (limited) return { error: limited };
+  if (!isContractId(contractId)) return { error: "Invalid contract ID" };
   if (!rawKey.trim()) return { error: "Enter a key to look up." };
   try {
     const key = parseStorageKeyInput(rawKey.trim(), kind, types);
@@ -84,11 +82,9 @@ export async function simulateInvocationAction(
   // wrong one can do is produce a call the contract rejects.
   types: ContractTypeDef[] = []
 ): Promise<SimulationResult> {
-  const limited = await rateLimitAction(headers(), {
-    scope: "contract-simulate",
-    max: 10,
-  });
-  if (limited) return { success: false, error: limited };
+  if (!isContractId(contractId)) {
+    return { success: false, error: "Invalid contract ID" };
+  }
   try {
     const tooLarge = simulateInputError(args, types);
     if (tooLarge) return { success: false, error: tooLarge };
