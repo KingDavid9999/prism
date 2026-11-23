@@ -10,7 +10,7 @@ interface Params {
 }
 
 export async function GET(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, { scope: "contract-storage-full" });
+  const limited = await rateLimitRequest(req, { scope: "contract-storage-full" });
   if (limited) return limited;
 
   if (!isIndexerConfigured()) {

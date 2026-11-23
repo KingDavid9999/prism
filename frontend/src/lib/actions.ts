@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { coerceArgInput, decodeAnyXdr, type XdrDecodeResult } from "./xdr";
 import {
   lookupStorageEntry,
@@ -8,7 +9,13 @@ import {
   type StorageKeyKind,
   type SimulationResult,
 } from "./soroban";
+import { rateLimitAction } from "./rate-limit";
+import { simulateInputError } from "./simulate-limits";
 import type { ContractTypeDef, StorageEntry } from "@/types";
+
+// Server actions are public POST endpoints, so each one is rate-limited like
+// the route it mirrors (#227). The scopes match those routes, so a simulation
+// run from the UI counts against the same allowance as one sent to the API.
 
 export async function lookupStorageKeyAction(
   contractId: string,
@@ -20,6 +27,10 @@ export async function lookupStorageKeyAction(
   // DataKey::Note, exactly as simulateInvocationAction does for arguments.
   types: ContractTypeDef[] = []
 ): Promise<StorageEntry | { error: string }> {
+  const limited = await rateLimitAction(headers(), {
+    scope: "contract-storage",
+  });
+  if (limited) return { error: limited };
   if (!rawKey.trim()) return { error: "Enter a key to look up." };
   try {
     const key = parseStorageKeyInput(rawKey.trim(), kind, types);
@@ -45,6 +56,9 @@ const XDR_INPUT_LIMIT = 64 * 1024; // 64 KB of base64
 export async function decodeXdrAction(
   input: string
 ): Promise<XdrDecodeResult | { error: string }> {
+  // No route mirrors this action, so it gets the default per-scope limit.
+  const limited = await rateLimitAction(headers(), { scope: "xdr-decode" });
+  if (limited) return { error: limited };
   if (!input.trim()) return { error: "Paste some base64 XDR to decode." };
   if (input.length > XDR_INPUT_LIMIT) {
     return {
@@ -70,7 +84,14 @@ export async function simulateInvocationAction(
   // wrong one can do is produce a call the contract rejects.
   types: ContractTypeDef[] = []
 ): Promise<SimulationResult> {
+  const limited = await rateLimitAction(headers(), {
+    scope: "contract-simulate",
+    max: 10,
+  });
+  if (limited) return { success: false, error: limited };
   try {
+    const tooLarge = simulateInputError(args, types);
+    if (tooLarge) return { success: false, error: tooLarge };
     const scArgs = args.map((a) => coerceArgInput(a.value, a.type, types));
     return await simulateInvocation(contractId, functionName, scArgs);
   } catch (err) {

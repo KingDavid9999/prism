@@ -3,7 +3,7 @@ import { xdr } from "@stellar/stellar-sdk";
 import { getTransaction } from "@/lib/horizon";
 import { getInvocationReturnValue } from "@/lib/soroban";
 import { decodeInvocation, getResourceUsage } from "@/lib/xdr";
-import { rateLimitAsync, getClientKey } from "@/lib/rate-limit";
+import { rateLimitRequest } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +12,8 @@ interface Params {
 }
 
 export async function GET(req: Request, { params }: Params) {
-  const key = `tx:${getClientKey(req)}`;
-  const limitResult = await rateLimitAsync(key, 30, 60_000);
-  if (!limitResult.success) {
-    return NextResponse.json(
-      { error: "Rate limit exceeded. Try again shortly." },
-      {
-        status: 429,
-        headers: { "Retry-After": String(limitResult.retryAfter ?? 60) },
-      }
-    );
-  }
+  const limited = await rateLimitRequest(req, { scope: "tx" });
+  if (limited) return limited;
 
   let tx;
   try {

@@ -14,7 +14,7 @@ interface Params {
 }
 
 export async function GET(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, { scope: "contract-storage" });
+  const limited = await rateLimitRequest(req, { scope: "contract-storage" });
   if (limited) return limited;
 
   const searchParams = new URL(req.url).searchParams;

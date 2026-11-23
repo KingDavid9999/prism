@@ -6,7 +6,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { rateLimit, getClientKey, rateLimitRequest } from "./rate-limit";
+import {
+  rateLimit,
+  rateLimitAsync,
+  getClientKey,
+  rateLimitRequest,
+  type RateLimitResult,
+  type RateLimitStore,
+} from "./rate-limit";
 
 describe("rateLimit", () => {
   beforeEach(() => {
@@ -137,19 +144,113 @@ describe("rateLimitRequest (#27)", () => {
     vi.useRealTimers();
   });
 
-  it("returns null when the request is within the limit", () => {
+  it("returns null when the request is within the limit", async () => {
     const req = new Request("http://localhost/");
-    const result = rateLimitRequest(req, { scope: "test-http", max: 5 });
+    const result = await rateLimitRequest(req, { scope: "test-http", max: 5 });
     expect(result).toBeNull();
   });
 
-  it("returns a 429 NextResponse when the limit is exceeded", () => {
+  it("returns a 429 NextResponse when the limit is exceeded", async () => {
     vi.useFakeTimers();
     const req = new Request("http://localhost/");
     // Exhaust the bucket (scope must be unique to this test)
     for (let i = 0; i < 2; i++)
-      rateLimitRequest(req, { scope: "test-http-429", max: 2 });
-    const result = rateLimitRequest(req, { scope: "test-http-429", max: 2 });
+      await rateLimitRequest(req, { scope: "test-http-429", max: 2 });
+    const result = await rateLimitRequest(req, {
+      scope: "test-http-429",
+      max: 2,
+    });
     expect(result?.status).toBe(429);
+  });
+});
+
+// Issue #225 — every route goes through the configured store, not only memory.
+describe("rateLimitRequest uses the shared store (#225)", () => {
+  afterEach(() => {
+    delete process.env.TRUST_PROXY;
+  });
+
+  /** Stands in for Redis: one counter table that every caller shares. */
+  function sharedStore() {
+    const counts = new Map<string, number>();
+    const increment = vi.fn(async (key: string) => {
+      const count = (counts.get(key) ?? 0) + 1;
+      counts.set(key, count);
+      return { count, ttlMs: 60_000 };
+    });
+    return { increment };
+  }
+
+  it("counts each request against the store and returns 429 past the limit", async () => {
+    const store = sharedStore();
+    const req = new Request("http://localhost/");
+    const opts = { scope: "shared-225-a", max: 2, store };
+
+    expect(await rateLimitRequest(req, opts)).toBeNull();
+    expect(await rateLimitRequest(req, opts)).toBeNull();
+    expect((await rateLimitRequest(req, opts))?.status).toBe(429);
+    expect(store.increment).toHaveBeenCalledTimes(3);
+  });
+
+  it("two instances sharing a store draw on one limit", async () => {
+    // Both instances hold the same store, so the second one's request counts
+    // against the first one's allowance.
+    const store = sharedStore();
+    process.env.TRUST_PROXY = "1";
+    const headers = { "x-forwarded-for": "198.51.100.9" };
+    const opts = { scope: "shared-225-b", max: 2, store };
+    const instanceA = new Request("http://localhost/", { headers });
+    const instanceB = new Request("http://localhost/", { headers });
+
+    expect(await rateLimitRequest(instanceA, opts)).toBeNull();
+    expect(await rateLimitRequest(instanceB, opts)).toBeNull();
+    expect((await rateLimitRequest(instanceA, opts))?.status).toBe(429);
+  });
+});
+
+// Issue #226 — an unreachable Redis must not take the API down.
+describe("rateLimitAsync falls back to memory when the store fails (#226)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function rejectingStore(): RateLimitStore {
+    return { increment: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")) };
+  }
+
+  it("keeps answering and limits in memory while the store rejects", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const store = rejectingStore();
+    const results: RateLimitResult[] = [];
+    for (let i = 0; i < 3; i++) {
+      results.push(await rateLimitAsync("fallback-226-a", 2, 60_000, store));
+    }
+
+    expect(results.map((r) => r.success)).toEqual([true, true, false]);
+    expect(results[2].retryAfter).toBeGreaterThan(0);
+  });
+
+  it("does not throw to the caller, so the route can still respond", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(
+      rateLimitAsync("fallback-226-b", 5, 60_000, rejectingStore())
+    ).resolves.toMatchObject({ success: true });
+  });
+
+  it("logs a failing store at most once a minute", async () => {
+    vi.useFakeTimers();
+    // Move past any earlier logging so this test's first failure is logged.
+    vi.setSystemTime(Date.now() + 10 * 60_000);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const store = rejectingStore();
+
+    await rateLimitAsync("fallback-226-c", 100, 60_000, store);
+    await rateLimitAsync("fallback-226-c", 100, 60_000, store);
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(60_000);
+    await rateLimitAsync("fallback-226-c", 100, 60_000, store);
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 });

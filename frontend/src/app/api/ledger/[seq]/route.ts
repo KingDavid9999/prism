@@ -9,7 +9,7 @@ interface Params {
 }
 
 export async function GET(req: Request, { params }: Params) {
-  const limited = rateLimitRequest(req, { scope: "ledger" });
+  const limited = await rateLimitRequest(req, { scope: "ledger" });
   if (limited) return limited;
 
   if (!/^\d+$/.test(params.seq)) {

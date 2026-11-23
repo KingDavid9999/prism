@@ -6,6 +6,7 @@ import InvocationHistory from "./InvocationHistory";
 import SectionHeader from "./SectionHeader";
 import { appendUnique, mergeVisible } from "@/lib/list-pagination";
 import { startVisibilityPolling } from "@/lib/visibility-poll";
+import { createPollBackoff, pollJson } from "@/lib/poll-backoff";
 import type { InvocationHistoryItem } from "@/types";
 
 interface Props {
@@ -48,6 +49,7 @@ export default function LiveInvocationHistory({
   const items = mergeVisible(firstPage, olderItems, (item) => item.txHash);
 
   useEffect(() => {
+    const backoff = createPollBackoff(intervalMs);
     return startVisibilityPolling({
       intervalMs,
       refresh: async () => {
