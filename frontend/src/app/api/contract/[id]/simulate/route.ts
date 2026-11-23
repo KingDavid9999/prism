@@ -3,6 +3,10 @@ import { getContractWasmInfo, simulateInvocation } from "@/lib/soroban";
 import { coerceArgInput } from "@/lib/xdr";
 import { rateLimitRequest } from "@/lib/rate-limit";
 import { isContractId } from "@/lib/strkey-validation";
+import {
+  simulateInputError,
+  MAX_SIMULATE_BYTES,
+} from "@/lib/simulate-limits";
 import type { ContractFunctionSpec, ContractTypeDef } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -143,30 +147,21 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
+  for (let i = 0; i < args.length; i++) {
+    if (!isArgShape(args[i])) {
+      return NextResponse.json(
+        {
+          error: `args[${i}] must be { value: string, type?: string }`,
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   const tooLarge = simulateInputError(args, body.types ?? []);
   if (tooLarge) {
     return NextResponse.json(
       { success: false, error: tooLarge },
-      { status: 400 }
-    );
-  }
-
-  // The contract's spec supplies the declared signature, which types any
-  // argument the caller leaves untyped and checks the ones they do type. It is
-  // read when there are arguments to type, and also for the type definitions
-  // when the caller hasn't supplied them.
-  let types: ContractTypeDef[] = body.types ?? [];
-  let declared: ContractFunctionSpec | undefined;
-  if (args.length > 0 || types.length === 0) {
-    const wasm = await getContractWasmInfo(params.id);
-    if (types.length === 0) types = wasm?.types ?? [];
-    declared = wasm?.functions.find((f) => f.name === functionName);
-  }
-  if (declared && args.length > declared.inputs.length) {
-    return NextResponse.json(
-      {
-        error: `args[${badIndex}] must be { value: string, type?: string }`,
-      },
       { status: 400 }
     );
   }
@@ -176,8 +171,7 @@ export async function POST(req: Request, { params }: Params) {
   // that do not match it. It also supplies the type definitions when the caller
   // hasn't sent them.
   const wasm = await getContractWasmInfo(params.id);
-  let types: ContractTypeDef[] = body.types ?? [];
-  if (types.length === 0) types = wasm?.types ?? [];
+  const types: ContractTypeDef[] = body.types ?? wasm?.types ?? [];
 
   // An empty function list means the spec could not be read, so calls are only
   // checked against a spec that actually declares functions.
