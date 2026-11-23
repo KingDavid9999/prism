@@ -31,6 +31,12 @@ export function isNotFound(error: unknown): boolean {
   return error instanceof HorizonError && error.status === 404;
 }
 
+/** Canonicalise a transaction hash, or return null for anything else. */
+export function normalizeTransactionHash(hash: string): string | null {
+  const normalized = hash.toLowerCase();
+  return /^[0-9a-f]{64}$/.test(normalized) ? normalized : null;
+}
+
 const REVALIDATE_SHORT = 10;
 const REVALIDATE_FINALIZED = 300;
 
@@ -211,7 +217,7 @@ export async function getLedger(sequence: number): Promise<LedgerRecord> {
 
 export async function getTransaction(hash: string): Promise<TransactionRecord> {
   const data = await get<HorizonTransaction>(
-    `/transactions/${hash}`,
+    `/transactions/${encodeURIComponent(hash)}`,
     REVALIDATE_FINALIZED
   );
   return mapTransaction(data);
@@ -225,7 +231,7 @@ export async function getTransactionOperations(
   hash: string
 ): Promise<OperationRecord[]> {
   const data = await get<HorizonPage<HorizonOperation>>(
-    `/transactions/${hash}/operations?limit=200`,
+    `/transactions/${encodeURIComponent(hash)}/operations?limit=200`,
     REVALIDATE_FINALIZED
   );
   return data._embedded.records.map(mapOperation);
@@ -241,7 +247,7 @@ export async function getRecentTransactions(
 }
 
 export async function getAccount(id: string): Promise<AccountRecord> {
-  const data = await get<HorizonAccount>(`/accounts/${id}`);
+  const data = await get<HorizonAccount>(`/accounts/${encodeURIComponent(id)}`);
   return mapAccount(data);
 }
 
@@ -253,7 +259,7 @@ export async function getAccountTransactions(
   const params = new URLSearchParams({ order: "desc", limit: String(limit) });
   if (cursor) params.append("cursor", cursor);
   const data = await get<HorizonPage<HorizonTransaction>>(
-    `/accounts/${id}/transactions?${params}`
+    `/accounts/${encodeURIComponent(id)}/transactions?${params}`
   );
 
   const records = data._embedded.records.map(mapTransaction);

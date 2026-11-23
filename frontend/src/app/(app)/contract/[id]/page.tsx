@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import {
   getContractInfo,
   getContractWasmInfo,
@@ -30,7 +31,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const contractId = params.id;
-  const info = await getContractInfo(contractId);
+  const result = await getContractInfo(contractId);
+  const info = result.status === "found" ? result.info : null;
   const title = `Contract ${contractId}`;
   const description = info
     ? `Contract ${contractId} on Stellar Soroban — executable: ${info.executable}.`
@@ -45,7 +47,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ContractPage({ params }: Props) {
   const contractId = params.id;
-  const info = await getContractInfo(contractId);
+  const contractResult = await getContractInfo(contractId);
+  if (contractResult.status === "missing") notFound();
+  const info = contractResult.status === "found" ? contractResult.info : null;
+  const lookupUnavailable = contractResult.status === "unavailable";
   const [
     wasm,
     eventsPage,
@@ -83,7 +88,11 @@ export default async function ContractPage({ params }: Props) {
       <div className="grid grid-cols-1 gap-8">
         <section>
           <h2 className="text-lg font-semibold mb-3">Overview</h2>
-          <ContractOverview info={info} wasm={wasm} />
+          <ContractOverview
+            info={info}
+            wasm={wasm}
+            lookupUnavailable={lookupUnavailable}
+          />
         </section>
 
         {wasm && wasm.functions.length > 0 && (

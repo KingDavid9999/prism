@@ -4,7 +4,7 @@
  * request-scoped cache in ./request-cache.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rpc } from "@stellar/stellar-sdk";
+import { rpc, StrKey } from "@stellar/stellar-sdk";
 
 vi.mock("./indexed-db", () => ({
   isIndexerConfigured: vi.fn(() => false),
@@ -18,6 +18,8 @@ vi.mock("./indexed-db", () => ({
 import { getContractInfo, getContractWasmInfo } from "./soroban";
 import { runWithCacheScope } from "./request-cache";
 import { getIndexedContract } from "./indexed-db";
+
+const CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32, 1));
 
 function instanceData() {
   return {
@@ -46,9 +48,12 @@ afterEach(() => {
 
 describe("getContractInfo request cache", () => {
   it("performs one instance lookup per page view", async () => {
-    const getContractData = vi
-      .spyOn(rpc.Server.prototype, "getContractData")
-      .mockResolvedValue(instanceData());
+    const getLedgerEntries = vi
+      .spyOn(rpc.Server.prototype, "getLedgerEntries")
+      .mockResolvedValue({
+        entries: [instanceData()],
+        latestLedger: 1000,
+      } as never);
     vi.spyOn(
       rpc.Server.prototype,
       "getContractWasmByContractId"
@@ -56,20 +61,26 @@ describe("getContractInfo request cache", () => {
 
     await runWithCacheScope(async () => {
       // generateMetadata()
-      await getContractInfo("contract-id");
+      await getContractInfo(CONTRACT_ID);
       // ContractPage(), which passes the info through to the WASM helper
-      const info = await getContractInfo("contract-id");
-      await getContractWasmInfo("contract-id", info);
+      const result = await getContractInfo(CONTRACT_ID);
+      await getContractWasmInfo(
+        CONTRACT_ID,
+        result.status === "found" ? result.info : null
+      );
     });
 
-    expect(getContractData).toHaveBeenCalledTimes(1);
+    expect(getLedgerEntries).toHaveBeenCalledTimes(1);
     expect(getIndexedContract).toHaveBeenCalledTimes(1);
   });
 
   it("shares one lookup even when callers do not pass the info through", async () => {
-    const getContractData = vi
-      .spyOn(rpc.Server.prototype, "getContractData")
-      .mockResolvedValue(instanceData());
+    const getLedgerEntries = vi
+      .spyOn(rpc.Server.prototype, "getLedgerEntries")
+      .mockResolvedValue({
+        entries: [instanceData()],
+        latestLedger: 1000,
+      } as never);
     vi.spyOn(
       rpc.Server.prototype,
       "getContractWasmByContractId"
@@ -77,24 +88,27 @@ describe("getContractInfo request cache", () => {
 
     await runWithCacheScope(async () => {
       await Promise.all([
-        getContractInfo("contract-id"),
-        getContractInfo("contract-id"),
-        getContractWasmInfo("contract-id"),
+        getContractInfo(CONTRACT_ID),
+        getContractInfo(CONTRACT_ID),
+        getContractWasmInfo(CONTRACT_ID),
       ]);
     });
 
-    expect(getContractData).toHaveBeenCalledTimes(1);
+    expect(getLedgerEntries).toHaveBeenCalledTimes(1);
     expect(getIndexedContract).toHaveBeenCalledTimes(1);
   });
 
   it("does not leak cached results into a different request", async () => {
-    const getContractData = vi
-      .spyOn(rpc.Server.prototype, "getContractData")
-      .mockResolvedValue(instanceData());
+    const getLedgerEntries = vi
+      .spyOn(rpc.Server.prototype, "getLedgerEntries")
+      .mockResolvedValue({
+        entries: [instanceData()],
+        latestLedger: 1000,
+      } as never);
 
-    await runWithCacheScope(() => getContractInfo("contract-id"));
-    await runWithCacheScope(() => getContractInfo("contract-id"));
+    await runWithCacheScope(() => getContractInfo(CONTRACT_ID));
+    await runWithCacheScope(() => getContractInfo(CONTRACT_ID));
 
-    expect(getContractData).toHaveBeenCalledTimes(2);
+    expect(getLedgerEntries).toHaveBeenCalledTimes(2);
   });
 });

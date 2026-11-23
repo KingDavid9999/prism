@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rpc } from "@stellar/stellar-sdk";
+import { rpc, StrKey } from "@stellar/stellar-sdk";
 
 vi.mock("./indexed-db", () => ({
   isIndexerConfigured: vi.fn(() => false),
@@ -20,6 +20,7 @@ vi.mock("./indexed-db", () => ({
 import { getContractWasmInfo, _clearWasmAbiCacheForTesting } from "./soroban";
 
 const WASM_HASH = "ab".repeat(32);
+const CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32, 1));
 
 function makeInstanceData() {
   return {
@@ -49,68 +50,72 @@ afterEach(() => {
 
 describe("getContractWasmInfo WASM ABI cache (#33)", () => {
   it("fetches the WASM on the first call", async () => {
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockResolvedValue(
-      makeInstanceData() as never
-    );
+    vi.spyOn(rpc.Server.prototype, "getLedgerEntries").mockResolvedValue({
+      entries: [makeInstanceData()],
+      latestLedger: 1000,
+    } as never);
     const wasmSpy = vi
       .spyOn(rpc.Server.prototype, "getContractWasmByContractId")
       .mockResolvedValue(Buffer.alloc(100) as never);
 
-    await getContractWasmInfo("contract-id");
+    await getContractWasmInfo(CONTRACT_ID);
 
     expect(wasmSpy).toHaveBeenCalledOnce();
   });
 
   it("does NOT call getContractWasmByContractId on a second request for the same contract", async () => {
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockResolvedValue(
-      makeInstanceData() as never
-    );
+    vi.spyOn(rpc.Server.prototype, "getLedgerEntries").mockResolvedValue({
+      entries: [makeInstanceData()],
+      latestLedger: 1000,
+    } as never);
     const wasmSpy = vi
       .spyOn(rpc.Server.prototype, "getContractWasmByContractId")
       .mockResolvedValue(Buffer.alloc(100) as never);
 
-    await getContractWasmInfo("contract-id");
-    await getContractWasmInfo("contract-id");
+    await getContractWasmInfo(CONTRACT_ID);
+    await getContractWasmInfo(CONTRACT_ID);
 
     // WASM downloaded exactly once; second call served from cache.
     expect(wasmSpy).toHaveBeenCalledOnce();
   });
 
   it("returns the same object on a cache hit", async () => {
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockResolvedValue(
-      makeInstanceData() as never
-    );
+    vi.spyOn(rpc.Server.prototype, "getLedgerEntries").mockResolvedValue({
+      entries: [makeInstanceData()],
+      latestLedger: 1000,
+    } as never);
     vi.spyOn(
       rpc.Server.prototype,
       "getContractWasmByContractId"
     ).mockResolvedValue(Buffer.alloc(100) as never);
 
-    const first = await getContractWasmInfo("contract-id");
-    const second = await getContractWasmInfo("contract-id");
+    const first = await getContractWasmInfo(CONTRACT_ID);
+    const second = await getContractWasmInfo(CONTRACT_ID);
 
     expect(second).toBe(first);
   });
 
   it("fetches the WASM again after the cache is cleared", async () => {
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockResolvedValue(
-      makeInstanceData() as never
-    );
+    vi.spyOn(rpc.Server.prototype, "getLedgerEntries").mockResolvedValue({
+      entries: [makeInstanceData()],
+      latestLedger: 1000,
+    } as never);
     const wasmSpy = vi
       .spyOn(rpc.Server.prototype, "getContractWasmByContractId")
       .mockResolvedValue(Buffer.alloc(100) as never);
 
-    await getContractWasmInfo("contract-id");
+    await getContractWasmInfo(CONTRACT_ID);
     _clearWasmAbiCacheForTesting();
-    await getContractWasmInfo("contract-id");
+    await getContractWasmInfo(CONTRACT_ID);
 
     expect(wasmSpy).toHaveBeenCalledTimes(2);
   });
 
   it("returns null when the RPC call fails", async () => {
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockRejectedValue(
+    vi.spyOn(rpc.Server.prototype, "getLedgerEntries").mockRejectedValue(
       new Error("RPC down")
     );
 
-    await expect(getContractWasmInfo("contract-id")).resolves.toBeNull();
+    await expect(getContractWasmInfo(CONTRACT_ID)).resolves.toBeNull();
   });
 });
