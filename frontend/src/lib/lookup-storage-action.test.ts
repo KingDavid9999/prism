@@ -13,6 +13,22 @@ vi.mock("./xdr", () => ({
 import { lookupStorageKeyAction } from "./actions";
 import { lookupStorageEntry, parseStorageKeyInput } from "./soroban";
 import type { ContractTypeDef } from "@/types";
+import { StrKey } from "@stellar/stellar-sdk";
+
+const CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32, 9));
+
+describe("lookupStorageKeyAction — contract ID validation", () => {
+  it("rejects a malformed contract ID before any RPC call", async () => {
+    const result = await lookupStorageKeyAction(
+      "CABC",
+      "DataKey",
+      "Admin",
+      "persistent"
+    );
+    expect(result).toEqual({ error: "Invalid contract ID" });
+    expect(lookupStorageEntry).not.toHaveBeenCalled();
+  });
+});
 
 const types: ContractTypeDef[] = [
   {
@@ -35,7 +51,7 @@ describe("lookupStorageKeyAction — contract types", () => {
 
     await expect(
       lookupStorageKeyAction(
-        "contract-id",
+        CONTRACT_ID,
         "DataKey",
         '{"Note":["hello"]}',
         "persistent",
@@ -52,8 +68,8 @@ describe("lookupStorageKeyAction — contract types", () => {
 
   it("rejects an empty key before touching the RPC", async () => {
     const result = await lookupStorageKeyAction(
-      "contract-id",
-      "symbol",
+      CONTRACT_ID,
+"symbol",
       "  ",
       "persistent"
     );

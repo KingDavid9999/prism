@@ -3,6 +3,7 @@ import { getContractEventsPage } from "@/lib/soroban";
 import { parsePageRequest } from "@/lib/history-cursor";
 import { EVENT_PAGE_SIZE } from "@/lib/contract-lists";
 import { rateLimitRequest } from "@/lib/rate-limit";
+import { isContractId } from "@/lib/strkey-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ interface Params {
 export async function GET(req: Request, { params }: Params) {
   const limited = rateLimitRequest(req, { scope: "contract-events" });
   if (limited) return limited;
+  if (!isContractId(params.id))
+    return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
 
   const request = parsePageRequest(new URL(req.url), EVENT_PAGE_SIZE);
   if (!request)

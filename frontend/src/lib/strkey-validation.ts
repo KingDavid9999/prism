@@ -7,3 +7,11 @@ import { StrKey } from "@stellar/stellar-sdk";
 export function isAccountId(id: string): boolean {
   return StrKey.isValidEd25519PublicKey(id);
 }
+
+/**
+ * True for a valid Soroban contract address (C…), checksum included. The
+ * contract API routes and server actions check this before any RPC call.
+ */
+export function isContractId(id: string): boolean {
+  return StrKey.isValidContract(id);
+}

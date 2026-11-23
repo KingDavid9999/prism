@@ -9,6 +9,7 @@ import {
   type SimulationResult,
 } from "./soroban";
 import type { ContractTypeDef, StorageEntry } from "@/types";
+import { isContractId } from "./strkey-validation";
 
 export async function lookupStorageKeyAction(
   contractId: string,
@@ -20,6 +21,7 @@ export async function lookupStorageKeyAction(
   // DataKey::Note, exactly as simulateInvocationAction does for arguments.
   types: ContractTypeDef[] = []
 ): Promise<StorageEntry | { error: string }> {
+  if (!isContractId(contractId)) return { error: "Invalid contract ID" };
   if (!rawKey.trim()) return { error: "Enter a key to look up." };
   try {
     const key = parseStorageKeyInput(rawKey.trim(), kind, types);
@@ -70,6 +72,9 @@ export async function simulateInvocationAction(
   // wrong one can do is produce a call the contract rejects.
   types: ContractTypeDef[] = []
 ): Promise<SimulationResult> {
+  if (!isContractId(contractId)) {
+    return { success: false, error: "Invalid contract ID" };
+  }
   try {
     const scArgs = args.map((a) => coerceArgInput(a.value, a.type, types));
     return await simulateInvocation(contractId, functionName, scArgs);
