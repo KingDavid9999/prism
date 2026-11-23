@@ -32,6 +32,16 @@ interface SimulateBody {
   types?: ContractTypeDef[];
 }
 
+/** An argument needs a string `value`; `type` is optional, but a string when given. */
+function isArgShape(arg: unknown): arg is { value: string; type?: string } {
+  if (typeof arg !== "object" || arg === null) return false;
+  const { value, type } = arg as Record<string, unknown>;
+  return (
+    typeof value === "string" &&
+    (type === undefined || typeof type === "string")
+  );
+}
+
 /**
  * Read the request body, giving up as soon as it passes `maxBytes` so an
  * oversized body is never buffered in full. Returns null when it is too large.
@@ -156,11 +166,44 @@ export async function POST(req: Request, { params }: Params) {
   if (declared && args.length > declared.inputs.length) {
     return NextResponse.json(
       {
-        success: false,
-        error: `${declared.name} takes ${declared.inputs.length} argument(s), but ${args.length} were given`,
+        error: `args[${badIndex}] must be { value: string, type?: string }`,
       },
       { status: 400 }
     );
+  }
+
+  // The contract's spec supplies the declared signature: it types any argument
+  // the caller leaves untyped, checks the ones they do type, and rejects calls
+  // that do not match it. It also supplies the type definitions when the caller
+  // hasn't sent them.
+  const wasm = await getContractWasmInfo(params.id);
+  let types: ContractTypeDef[] = body.types ?? [];
+  if (types.length === 0) types = wasm?.types ?? [];
+
+  // An empty function list means the spec could not be read, so calls are only
+  // checked against a spec that actually declares functions.
+  const spec = wasm?.functions ?? [];
+  const declared = spec.find((f) => f.name === functionName);
+  if (spec.length > 0) {
+    if (!declared) {
+      const names = spec.map((f) => f.name).join(", ");
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Unknown function "${functionName}". The contract declares: ${names}`,
+        },
+        { status: 400 }
+      );
+    }
+    if (args.length !== declared.inputs.length) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `${declared.name} takes ${declared.inputs.length} argument(s), but ${args.length} were given`,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   try {

@@ -157,6 +157,20 @@ With more than one proxy, such as a CDN or load balancer in front of nginx, the 
 
 To check the setup, send about 35 requests in a minute to a read route from one machine, for example `curl -s -o /dev/null -w '%{http_code}\n' https://explorer.example.com/api/ledger/1`. From around the 31st request you should get `429`. With `TRUST_PROXY=1` and a correctly configured proxy, a second machine should still get `200` during that time. If it also gets `429`, verify that the proxy replaces the header and that the original client address reaches Prism.
 
+### Security headers
+
+Every response carries these headers, set in `frontend/next.config.js`:
+
+| Header | Value | Purpose |
+| --- | --- | --- |
+| `Content-Security-Policy` | `default-src 'self'`, with the configured Horizon and RPC origins allowed in `connect-src` | Limits where scripts, styles and API calls can load from. |
+| `X-Frame-Options` | `DENY` | Stops other sites from framing Prism. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Sends only the origin on cross-site requests. |
+| `X-Content-Type-Options` | `nosniff` | Stops browsers from guessing a response's content type. |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=(), usb=()` | Turns off browser features Prism does not use. |
+
+`Strict-Transport-Security` is opt-in. Set `ENABLE_HSTS=1` for a production deployment that is served over HTTPS everywhere, and Prism then sends `max-age=31536000; includeSubDomains`. Leave it unset while the site is still reachable over plain HTTP, because browsers that have seen the header refuse HTTP for a year. Next.js reads `headers()` at build time, so set the variable for `npm run build`, not only at runtime. The provided Dockerfile does not pass it into the build stage, so Docker users need to add an `ARG` for it there.
+
 ---
 
 ## Roadmap

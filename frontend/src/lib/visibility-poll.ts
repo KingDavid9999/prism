@@ -8,8 +8,12 @@
  */
 export interface VisibilityPollOptions {
   intervalMs: number;
-  /** The refresh to run. Called once on becoming visible and on each tick. */
-  refresh: () => void | Promise<void>;
+  /**
+   * The refresh to run. Called once on becoming visible and on each tick.
+   * Returning a number of milliseconds pauses polling for at least that long
+   * before the next refresh, which is how a throttled request honors Retry-After.
+   */
+  refresh: () => void | number | Promise<void | number>;
   /** Returns true while the tab is in the background. */
   isHidden?: () => boolean;
   /** Subscribe to visibility changes (defaults to `document`). */
@@ -38,6 +42,20 @@ export function startVisibilityPolling({
   removeVisibilityListener = defaultRemoveVisibilityListener,
 }: VisibilityPollOptions): () => void {
   let timer: ReturnType<typeof setInterval> | null = null;
+  let pausedUntil = 0;
+
+  const applyPause = (pauseMs: void | number) => {
+    if (typeof pauseMs === "number") pausedUntil = Date.now() + pauseMs;
+  };
+
+  // Runs one refresh unless the tab is hidden or a previous refresh asked for
+  // a pause that has not elapsed yet.
+  const runRefresh = () => {
+    if (isHidden() || Date.now() < pausedUntil) return;
+    const result = refresh();
+    if (result instanceof Promise) void result.then(applyPause);
+    else applyPause(result);
+  };
 
   const stopTimer = () => {
     if (timer !== null) {
@@ -48,9 +66,7 @@ export function startVisibilityPolling({
 
   const startTimer = () => {
     if (timer === null && !isHidden()) {
-      timer = setInterval(() => {
-        if (!isHidden()) void refresh();
-      }, intervalMs);
+      timer = setInterval(runRefresh, intervalMs);
     }
   };
 
@@ -61,7 +77,7 @@ export function startVisibilityPolling({
     }
     // Became visible: refresh immediately so the user sees current data,
     // then carry on with the normal interval.
-    void refresh();
+    runRefresh();
     startTimer();
   };
 
