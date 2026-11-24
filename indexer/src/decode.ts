@@ -13,6 +13,7 @@ export interface DecodedInvocation {
   contractId: string;
   functionName: string;
   args: unknown;
+  opIndex: number;
 }
 
 function unwrapTx(envelope: xdr.TransactionEnvelope) {
@@ -23,23 +24,26 @@ function unwrapTx(envelope: xdr.TransactionEnvelope) {
 
 export function decodeInvocation(
   envelope: xdr.TransactionEnvelope
-): DecodedInvocation | null {
+): DecodedInvocation[] {
+  const invocations: DecodedInvocation[] = [];
   try {
     const tx = unwrapTx(envelope);
-    for (const op of tx.operations()) {
+    for (let opIndex = 0; opIndex < tx.operations().length; opIndex++) {
+      const op = tx.operations()[opIndex];
       if (op.body().switch().name !== "invokeHostFunction") continue;
       const hostFn = op.body().invokeHostFunctionOp().hostFunction();
       if (hostFn.switch().name !== "hostFunctionTypeInvokeContract") continue;
       const invoke = hostFn.invokeContract();
-      return {
+      invocations.push({
         contractId: Address.fromScAddress(invoke.contractAddress()).toString(),
         functionName: invoke.functionName().toString(),
         args: invoke.args().map(scValToDisplay),
-      };
+        opIndex,
+      });
     }
-    return null;
+    return invocations;
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -104,6 +108,7 @@ export interface DecodedStorageChange {
   valueDisplay: string | null;
   changeType: "created" | "updated" | "removed" | "state";
   keyHash?: string;
+  opIndex: number;
 }
 
 /**
@@ -180,7 +185,8 @@ export function extractStorageChanges(
   if (!v) return [];
 
   const out: DecodedStorageChange[] = [];
-  for (const opMeta of v.operations()) {
+  for (let opIndex = 0; opIndex < v.operations().length; opIndex++) {
+    const opMeta = v.operations()[opIndex];
     for (const change of opMeta.changes()) {
       const kind = change.switch().name;
       if (kind === "ledgerEntryRemoved") {
@@ -195,6 +201,7 @@ export function extractStorageChanges(
           valueDisplay: null,
           changeType: "removed",
           keyHash: contractDataKeyHash(cd),
+          opIndex,
         });
         continue;
       }
@@ -224,7 +231,7 @@ export function extractStorageChanges(
 
       if (isInstanceKey) {
         out.push(
-          ...expandInstanceEntry(contractId, cd.val(), changeType).map(
+          ...expandInstanceEntry(contractId, cd.val(), changeType, opIndex).map(
             (row) => ({
               ...row,
               keyHash: contractDataKeyHash(cd),
@@ -242,6 +249,7 @@ export function extractStorageChanges(
         valueDisplay: scValToDisplay(cd.val()),
         changeType,
         keyHash: contractDataKeyHash(cd),
+        opIndex,
       });
     }
   }
@@ -257,7 +265,8 @@ export function extractStorageChanges(
 function expandInstanceEntry(
   contractId: string,
   val: xdr.ScVal,
-  changeType: DecodedStorageChange["changeType"]
+  changeType: DecodedStorageChange["changeType"],
+  opIndex: number
 ): DecodedStorageChange[] {
   if (val.switch().name !== "scvContractInstance") return [];
   const instance = val.instance();
@@ -272,6 +281,7 @@ function expandInstanceEntry(
       keyXdr: "__wasm_hash__",
       valueDisplay: executable.wasmHash().toString("hex"),
       changeType,
+      opIndex,
     });
   }
 
@@ -283,6 +293,7 @@ function expandInstanceEntry(
       keyXdr: scValToXdr(entry.key()),
       valueDisplay: scValToDisplay(entry.val()),
       changeType,
+      opIndex,
     });
   }
 

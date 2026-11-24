@@ -207,35 +207,55 @@ function sourceAccountOf(envelope: xdr.TransactionEnvelope): string {
   }
 }
 
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3
+): Promise<T> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < maxRetries - 1) {
+        const delayMs = backoffDelay(attempt + 1);
+        await sleep(delayMs);
+      }
+    }
+  }
+  throw lastError;
+}
+
 export async function processTransaction(
   tx: rpc.Api.TransactionInfo,
   db: Db = prisma
 ): Promise<void> {
   const createdAt = new Date(tx.createdAt * 1000);
-  const invocation = decodeInvocation(tx.envelopeXdr);
+  const invocations = decodeInvocation(tx.envelopeXdr);
   const sourceAccount = sourceAccountOf(tx.envelopeXdr);
 
-  if (invocation) {
+  if (invocations.length > 0) {
     // skipDuplicates makes reprocessing a page after a crash-before-cursor-advance safe.
-    const invocationResult = await db.invocation.createMany({
-      data: [
-        {
+    const invocationResult = await withRetry(() =>
+      db.invocation.createMany({
+        data: invocations.map((inv) => ({
           txHash: tx.txHash,
+          opIndex: inv.opIndex,
           ledger: tx.ledger,
           createdAt,
-          contractId: invocation.contractId,
-          functionName: invocation.functionName,
-          args: invocation.args as object,
+          contractId: inv.contractId,
+          functionName: inv.functionName,
+          args: inv.args as object,
           successful: tx.status === "SUCCESS",
           sourceAccount,
           returnValue:
             tx.status === "SUCCESS"
               ? extractInvocationReturnValue(tx.resultMetaXdr)
               : null,
-        },
-      ],
-      skipDuplicates: true,
-    });
+        })),
+        skipDuplicates: true,
+      })
+    );
     metricRowsWritten.inc({ table: "invocation" }, invocationResult.count);
   }
 
@@ -246,70 +266,79 @@ export async function processTransaction(
       sourceAccount
     );
     if (contract) {
-      const contractResult = await db.contract.createMany({
-        data: [
-          {
-            contractId: contract.contractId,
-            creator: contract.creator,
-            deploymentLedger: tx.ledger,
-            deploymentTxHash: tx.txHash,
-            createdAt,
-          },
-        ],
-        skipDuplicates: true,
-      });
+      const contractResult = await withRetry(() =>
+        db.contract.createMany({
+          data: [
+            {
+              contractId: contract.contractId,
+              creator: contract.creator,
+              deploymentLedger: tx.ledger,
+              deploymentTxHash: tx.txHash,
+              createdAt,
+            },
+          ],
+          skipDuplicates: true,
+        })
+      );
       metricRowsWritten.inc({ table: "contract" }, contractResult.count);
     }
   }
 
   const changes = extractStorageChanges(tx.resultMetaXdr);
   if (changes.length > 0) {
-    const storageResult = await db.storageChange.createMany({
-      skipDuplicates: true,
-      data: changes.map((c) => ({
-        contractId: c.contractId,
-        durability: c.durability,
-        keyDisplay: c.keyDisplay,
-        keyXdr: c.keyXdr,
-        valueDisplay: c.valueDisplay,
-        keyHash: c.keyHash,
-        changeType: c.changeType,
-        ledger: tx.ledger,
-        txHash: tx.txHash,
-        createdAt,
-      })),
-    });
+    const storageResult = await withRetry(() =>
+      db.storageChange.createMany({
+        skipDuplicates: true,
+        data: changes.map((c) => ({
+          contractId: c.contractId,
+          durability: c.durability,
+          keyDisplay: c.keyDisplay,
+          keyXdr: c.keyXdr,
+          valueDisplay: c.valueDisplay,
+          keyHash: c.keyHash,
+          changeType: c.changeType,
+          ledger: tx.ledger,
+          txHash: tx.txHash,
+          opIndex: c.opIndex,
+          createdAt,
+        })),
+      })
+    );
     metricRowsWritten.inc({ table: "storageChange" }, storageResult.count);
   }
 
   const ttlChanges = extractTtlChanges(tx.resultMetaXdr);
   if (ttlChanges.length > 0) {
-    const ttlResult = await db.ttlChange.createMany({
-      skipDuplicates: true,
-      data: ttlChanges.map((change) => ({
-        ...change,
-        ledger: tx.ledger,
-        txHash: tx.txHash,
-      })),
-    });
+    const ttlResult = await withRetry(() =>
+      db.ttlChange.createMany({
+        skipDuplicates: true,
+        data: ttlChanges.map((change) => ({
+          ...change,
+          ledger: tx.ledger,
+          txHash: tx.txHash,
+        })),
+      })
+    );
     metricRowsWritten.inc({ table: "ttlChange" }, ttlResult.count);
   }
 
   const events = extractEvents(tx.resultMetaXdr, tx.txHash);
   if (events.length > 0) {
-    const eventsResult = await db.contractEventRecord.createMany({
-      skipDuplicates: true,
-      data: events.map((e) => ({
-        eventId: e.eventId,
-        contractId: e.contractId,
-        type: e.type,
-        topic: e.topic,
-        value: e.value,
-        txHash: tx.txHash,
-        ledger: tx.ledger,
-        createdAt,
-      })),
-    });
+    const eventsResult = await withRetry(() =>
+      db.contractEventRecord.createMany({
+        skipDuplicates: true,
+        data: events.map((e) => ({
+          eventId: e.eventId,
+          contractId: e.contractId,
+          type: e.type,
+          topic: e.topic,
+          value: e.value,
+          txHash: tx.txHash,
+          ledger: tx.ledger,
+          createdAt,
+        })),
+      })
+    );
     metricRowsWritten.inc({ table: "contractEventRecord" }, eventsResult.count);
   }
 }
@@ -398,12 +427,17 @@ async function fetchPage(
       "RPC returned a full page without advancing its transaction cursor"
     );
   }
+
+  const txLedgers = res.transactions.map((t) => t.ledger);
+  const minLedger = Math.min(...txLedgers);
+  const maxLedger = Math.max(...txLedgers);
+  const hasMorePages = res.transactions.length === PAGE_LIMIT;
+
   return {
     transactions: res.transactions,
     progress: {
-      lastLedger: Math.max(cursor, ...res.transactions.map((t) => t.ledger)),
-      paginationCursor:
-        res.transactions.length === PAGE_LIMIT ? res.cursor : null,
+      lastLedger: hasMorePages ? maxLedger : minLedger - 1,
+      paginationCursor: hasMorePages ? res.cursor : null,
     },
   };
 }
