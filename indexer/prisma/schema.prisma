@@ -42,6 +42,7 @@ model BackfillCursor {
 model Invocation {
   id            String   @id @default(cuid())
   txHash        String
+  opIndex       Int
   ledger        Int
   createdAt     DateTime
   contractId    String
@@ -51,7 +52,7 @@ model Invocation {
   sourceAccount String
   returnValue   String?
 
-  @@unique([txHash])
+  @@unique([txHash, opIndex])
   @@index([contractId, ledger])
 }
 
@@ -81,9 +82,10 @@ model StorageChange {
   changeType   String // created | updated | removed | state
   ledger       Int
   txHash       String
+  opIndex      Int
   createdAt    DateTime
 
-  @@unique([txHash, contractId, keyXdr, durability, changeType])
+  @@unique([txHash, contractId, keyXdr, durability, changeType, opIndex])
   @@index([contractId, keyDisplay, durability, ledger])
   @@index([contractId, ledger])
   @@index([keyHash])
