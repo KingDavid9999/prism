@@ -148,15 +148,17 @@ async function fetchContractInfo(
     return { status: "unavailable" };
   }
 
-  const indexed = await getIndexedContract(contractId);
-  return {
-    status: "found",
-    info: {
+  try {
+    const indexed = await getIndexedContract(contractId);
+    return {
       ...info,
       creator: indexed?.creator,
       deploymentLedger: indexed?.deploymentLedger,
-    },
-  };
+    };
+  } catch (err) {
+    console.error("Failed to retrieve indexed contract info:", err);
+    return info;
+  }
 }
 
 /**
@@ -424,21 +426,32 @@ async function getContractEventsFromRpc(
 ): Promise<RpcEventsResult> {
   try {
     const s = server();
-    const [latest, oldestLedger] = await Promise.all([
-      s.getLatestLedger(),
-      rpcOldestLedger(s),
-    ]);
-    const fallbackStart = Math.max(1, latest.sequence - 17280);
-    const startLedger =
-      oldestLedger === null
-        ? fallbackStart
-        : Math.max(1, Math.min(latest.sequence, oldestLedger));
-    const res = await s.getEvents({
-      startLedger,
-      filters: [{ type: "contract", contractIds: [contractId] }],
-      limit,
-    });
-    const items = res.events
+    const latest = await s.getLatestLedger();
+    const startLedger = Math.max(1, latest.sequence - 17280);
+    
+    let events: rpc.Api.EventResponse[] = [];
+    let currentStart = startLedger;
+    let cursor: string | undefined;
+
+    while (events.length < limit) {
+      const res = await s.getEvents({
+        startLedger: currentStart,
+        filters: [{ type: "contract", contractIds: [contractId] }],
+        limit: 200,
+        cursor,
+      });
+
+      if (res.events.length === 0) break;
+      
+      events = res.events;
+      
+      if (!res.latestLedger || res.events.length < 200) break;
+      
+      cursor = res.events[res.events.length - 1].pagingToken;
+    }
+
+    const items = events
+      .slice(-limit)
       .map((e) => ({
         id: e.id,
         contractId,
@@ -557,8 +570,12 @@ async function getInvocationHistoryFromRpc(
 export async function getInvocationReturnValue(
   txHash: string
 ): Promise<string | null> {
-  const indexed = await getIndexedInvocationReturnValue(txHash);
-  if (indexed !== null) return indexed;
+  try {
+    const indexed = await getIndexedInvocationReturnValue(txHash);
+    if (indexed !== null) return indexed;
+  } catch (err) {
+    console.error("Failed to retrieve indexed invocation return value:", err);
+  }
 
   try {
     const res = await server().getTransaction(txHash);
@@ -612,18 +629,22 @@ export function contractEventsFromRpc(
 export async function getTransactionEvents(
   txHash: string
 ): Promise<ContractEvent[]> {
-  const indexed = await getIndexedTransactionEvents(txHash);
-  if (indexed !== null) {
-    return indexed.map((e) => ({
-      id: e.eventId,
-      contractId: e.contractId,
-      type: e.type,
-      topic: e.topic,
-      value: e.value,
-      txHash: e.txHash,
-      ledger: e.ledger,
-      timestamp: e.createdAt,
-    }));
+  try {
+    const indexed = await getIndexedTransactionEvents(txHash);
+    if (indexed !== null) {
+      return indexed.map((e) => ({
+        id: e.eventId,
+        contractId: e.contractId,
+        type: e.type,
+        topic: e.topic,
+        value: e.value,
+        txHash: e.txHash,
+        ledger: e.ledger,
+        timestamp: e.createdAt,
+      }));
+    }
+  } catch (err) {
+    console.error("Failed to retrieve indexed transaction events:", err);
   }
 
   try {
@@ -691,12 +712,30 @@ export async function getRecentNetworkActivity(
   try {
     const s = server();
     const latest = await s.getLatestLedger();
-    const res = await s.getEvents({
-      startLedger: Math.max(1, latest.sequence - 100),
-      filters: [{ type: "contract" }],
-      limit,
-    });
-    return res.events
+    
+    let events: rpc.Api.EventResponse[] = [];
+    let currentStart = Math.max(1, latest.sequence - 100);
+    let cursor: string | undefined;
+
+    while (events.length < limit) {
+      const res = await s.getEvents({
+        startLedger: currentStart,
+        filters: [{ type: "contract" }],
+        limit: 200,
+        cursor,
+      });
+
+      if (res.events.length === 0) break;
+      
+      events = res.events;
+      
+      if (!res.latestLedger || res.events.length < 200) break;
+      
+      cursor = res.events[res.events.length - 1].pagingToken;
+    }
+
+    return events
+      .slice(-limit)
       .map((e) => ({
         contractId: e.contractId?.toString() ?? "",
         topic: e.topic[0] ? scValToDisplay(e.topic[0]) : "event",
