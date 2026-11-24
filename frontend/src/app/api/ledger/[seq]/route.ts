@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLedger } from "@/lib/horizon";
+import { getLedger, isNotFound } from "@/lib/horizon";
 import { rateLimitRequest } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,13 @@ export async function GET(req: Request, { params }: Params) {
   try {
     const ledger = await getLedger(seq);
     return NextResponse.json(ledger);
-  } catch {
-    return NextResponse.json({ error: "Ledger not found" }, { status: 404 });
+  } catch (err) {
+    if (isNotFound(err)) {
+      return NextResponse.json({ error: "Ledger not found" }, { status: 404 });
+    }
+    return NextResponse.json(
+      { error: "Ledger lookup unavailable" },
+      { status: 502 }
+    );
   }
 }

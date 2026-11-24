@@ -15,13 +15,17 @@ export async function GET(req: Request, { params }: Params) {
   if (!isContractId(params.id))
     return NextResponse.json({ error: "Invalid contract ID" }, { status: 400 });
 
-  const info = await getContractInfo(params.id);
-  if (!info) {
+  const result = await getContractInfo(params.id);
+  if (result.status === "missing") {
+    return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+  }
+  if (result.status === "unavailable") {
     return NextResponse.json(
-      { error: "Contract not found or unreachable" },
-      { status: 404 }
+      { error: "Contract lookup unavailable" },
+      { status: 502 }
     );
   }
+  const { info } = result;
   if (info.executable !== "wasm") {
     return NextResponse.json(
       { error: "This contract has no WASM; it is a Stellar Asset Contract" },
