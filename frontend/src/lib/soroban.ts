@@ -94,16 +94,33 @@ export function extractSacAssetDetails(
     : undefined;
 }
 
+export type ContractInfoResult =
+  | { status: "found"; info: ContractInfo }
+  | { status: "missing" }
+  | { status: "unavailable" };
+
 async function fetchContractInfo(
   contractId: string
-): Promise<ContractInfo | null> {
+): Promise<ContractInfoResult> {
+  let key: xdr.LedgerKey;
+  try {
+    key = new Contract(contractId).getFootprint();
+  } catch {
+    return { status: "missing" };
+  }
+
+  let entry: rpc.Api.LedgerEntryResult | undefined;
+  try {
+    ({
+      entries: [entry],
+    } = await server().getLedgerEntries(key));
+  } catch {
+    return { status: "unavailable" };
+  }
+  if (!entry?.val) return { status: "missing" };
+
   let info: ContractInfo;
   try {
-    const entry = await server().getContractData(
-      contractId,
-      xdr.ScVal.scvLedgerKeyContractInstance(),
-      rpc.Durability.Persistent
-    );
     const instance = entry.val.contractData().val().instance();
     const executable = instance.executable();
     const isWasm = executable.switch().name === "contractExecutableWasm";
@@ -128,7 +145,7 @@ async function fetchContractInfo(
       assetDetails,
     };
   } catch {
-    return null;
+    return { status: "unavailable" };
   }
 
   try {
@@ -146,11 +163,11 @@ async function fetchContractInfo(
 
 /**
  * Request-scoped, memoised contract lookup. Multiple callers within the same
- * server request share a single RPC getContractData call and DB query.
+ * server request share a single RPC getLedgerEntries call and DB query.
  */
 export const getContractInfo: (
   contractId: string
-) => Promise<ContractInfo | null> = cache(fetchContractInfo);
+) => Promise<ContractInfoResult> = cache(fetchContractInfo);
 
 /**
  * A storage key's type. Any Soroban spec type string is accepted — including
@@ -276,10 +293,14 @@ export async function getContractWasmInfo(
   try {
     // Read the WASM hash from the contract instance entry first so we can
     // serve a cache hit without downloading the bytecode at all.
-    const info =
-      providedInfo === undefined
-        ? await getContractInfo(contractId)
-        : providedInfo;
+    let info: ContractInfo | null;
+    if (providedInfo === undefined) {
+      const result = await getContractInfo(contractId);
+      if (result.status !== "found") return null;
+      info = result.info;
+    } else {
+      info = providedInfo;
+    }
     if (info?.wasmHash && wasmAbiCache.has(info.wasmHash)) {
       return wasmAbiCache.get(info.wasmHash)!;
     }
@@ -372,6 +393,33 @@ interface RpcEventsResult {
   error: string | null;
 }
 
+const RPC_HEALTH_CACHE_MS = 30_000;
+let rpcOldestLedgerCache:
+  { oldestLedger: number; expiresAt: number } | undefined;
+
+async function rpcOldestLedger(s: rpc.Server): Promise<number | null> {
+  const now = Date.now();
+  if (rpcOldestLedgerCache && rpcOldestLedgerCache.expiresAt > now) {
+    return rpcOldestLedgerCache.oldestLedger;
+  }
+  try {
+    const health = await s.getHealth();
+    if (!Number.isFinite(health.oldestLedger)) return null;
+    rpcOldestLedgerCache = {
+      oldestLedger: health.oldestLedger,
+      expiresAt: now + RPC_HEALTH_CACHE_MS,
+    };
+    return health.oldestLedger;
+  } catch {
+    return null;
+  }
+}
+
+/** Exported for testing only — clears the cached RPC retention window. */
+export function _clearRpcHealthCacheForTesting(): void {
+  rpcOldestLedgerCache = undefined;
+}
+
 async function getContractEventsFromRpc(
   contractId: string,
   limit: number
@@ -433,8 +481,7 @@ export async function getInvocationHistory(
   return (await getInvocationHistoryPage(contractId, { limit })).items;
 }
 
-export interface InvocationHistoryPage
-  extends HistoryPage<InvocationHistoryItem> {
+export interface InvocationHistoryPage extends HistoryPage<InvocationHistoryItem> {
   /**
    * Human-readable reason the RPC lookup failed, or null on success. Kept
    * separate from `items`, as for ContractEventsPage, so an RPC outage is not

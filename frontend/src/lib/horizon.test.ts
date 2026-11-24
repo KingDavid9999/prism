@@ -151,6 +151,31 @@ describe("getTransaction", () => {
     const { getTransaction } = await import("./horizon");
     expect((await getTransaction("deadbeef")).memo).toBe("hello");
   });
+
+  it("encodes the hash path segment", async () => {
+    const fetchMock = mockFetchOnce(transaction);
+    const { getTransaction } = await import("./horizon");
+    await getTransaction("../ledgers/1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/transactions/..%2Fledgers%2F1"),
+      expect.anything()
+    );
+  });
+});
+
+describe("normalizeTransactionHash", () => {
+  it("accepts 64 hex characters and lowercases them", async () => {
+    const { normalizeTransactionHash } = await import("./horizon");
+    expect(normalizeTransactionHash("A".repeat(64))).toBe("a".repeat(64));
+  });
+
+  it.each(["abc", "../ledgers/1", `${"a".repeat(63)}?`])(
+    "rejects %s",
+    async (hash) => {
+      const { normalizeTransactionHash } = await import("./horizon");
+      expect(normalizeTransactionHash(hash)).toBeNull();
+    }
+  );
 });
 
 describe("Horizon failure detail", () => {

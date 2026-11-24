@@ -11,6 +11,7 @@ vi.mock("./indexed-db", () => ({
 }));
 
 import {
+  _clearRpcHealthCacheForTesting,
   getContractEvents,
   getContractEventsPage,
   getContractInfo,
@@ -30,6 +31,7 @@ import {
 } from "./indexed-db";
 
 afterEach(() => {
+  _clearRpcHealthCacheForTesting();
   vi.restoreAllMocks();
   vi.mocked(isIndexerConfigured).mockReset();
   vi.mocked(getIndexedEvents).mockReset();
@@ -50,9 +52,20 @@ function rpcEvent(txHash = "tx-1") {
   };
 }
 
+function mockRpcHealth(oldestLedger: number) {
+  return vi.spyOn(rpc.Server.prototype, "getHealth").mockResolvedValue({
+    latestLedger: oldestLedger + 100,
+    ledgerRetentionWindow: 100,
+    oldestLedger,
+    status: "healthy",
+  } as never);
+}
+
+const CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32, 1));
+
 describe("getContractInfo", () => {
-  it("reads and formats contract instance data through RPC", async () => {
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockResolvedValue({
+  function instanceEntry() {
+    return {
       val: {
         contractData: () => ({
           val: () => ({
@@ -68,24 +81,46 @@ describe("getContractInfo", () => {
       },
       liveUntilLedgerSeq: 200,
       lastModifiedLedgerSeq: 90,
-    } as never);
+    };
+  }
 
-    const info = await getContractInfo("contract-id");
-    expect(info).toMatchObject({
-      executable: "wasm",
-      wasmHash: "01".repeat(32),
-      liveUntilLedgerSeq: 200,
-      lastModifiedLedgerSeq: 90,
-      instanceStorage: [],
+  it("reads and formats contract instance data through RPC", async () => {
+    const getLedgerEntries = vi
+      .spyOn(rpc.Server.prototype, "getLedgerEntries")
+      .mockResolvedValue({
+        entries: [instanceEntry()],
+        latestLedger: 100,
+      } as never);
+
+    const result = await getContractInfo(CONTRACT_ID);
+    expect(result).toMatchObject({
+      status: "found",
+      info: {
+        executable: "wasm",
+        wasmHash: "01".repeat(32),
+        liveUntilLedgerSeq: 200,
+        lastModifiedLedgerSeq: 90,
+        instanceStorage: [],
+      },
     });
-    expect(rpc.Server.prototype.getContractData).toHaveBeenCalledOnce();
+    expect(getLedgerEntries).toHaveBeenCalledOnce();
   });
 
-  it("returns null when the RPC request fails", async () => {
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockRejectedValue(
+  it("reports missing separately from an RPC failure", async () => {
+    vi.spyOn(rpc.Server.prototype, "getLedgerEntries").mockResolvedValue({
+      entries: [],
+      latestLedger: 100,
+    } as never);
+    await expect(getContractInfo(CONTRACT_ID)).resolves.toEqual({
+      status: "missing",
+    });
+
+    vi.mocked(rpc.Server.prototype.getLedgerEntries).mockRejectedValue(
       new Error("RPC down")
     );
-    await expect(getContractInfo("contract-id")).resolves.toBeNull();
+    await expect(getContractInfo(CONTRACT_ID)).resolves.toEqual({
+      status: "unavailable",
+    });
   });
 
   it("includes indexed deployment information", async () => {
@@ -94,25 +129,17 @@ describe("getContractInfo", () => {
       creator: "GCREATOR",
       deploymentLedger: 88,
     });
-    vi.spyOn(rpc.Server.prototype, "getContractData").mockResolvedValue({
-      val: {
-        contractData: () => ({
-          val: () => ({
-            instance: () => ({
-              executable: () => ({
-                switch: () => ({ name: "contractExecutableWasm" }),
-                wasmHash: () => Buffer.alloc(32, 1),
-              }),
-              storage: () => [],
-            }),
-          }),
-        }),
-      },
+    vi.spyOn(rpc.Server.prototype, "getLedgerEntries").mockResolvedValue({
+      entries: [instanceEntry()],
+      latestLedger: 100,
     } as never);
 
-    await expect(getContractInfo("contract-id")).resolves.toMatchObject({
-      creator: "GCREATOR",
-      deploymentLedger: 88,
+    await expect(getContractInfo(CONTRACT_ID)).resolves.toMatchObject({
+      status: "found",
+      info: {
+        creator: "GCREATOR",
+        deploymentLedger: 88,
+      },
     });
   });
 });
@@ -317,6 +344,7 @@ describe("getContractEvents", () => {
 
   it("queries RPC and formats the event list when no indexer is configured", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(false);
+    mockRpcHealth(1_000);
     vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({
       sequence: 20_000,
     } as never);
@@ -336,8 +364,26 @@ describe("getContractEvents", () => {
     expect(getIndexedEvents).not.toHaveBeenCalled();
   });
 
+  it("starts RPC events at the node's oldest ledger", async () => {
+    vi.mocked(isIndexerConfigured).mockReturnValue(false);
+    mockRpcHealth(1_000);
+    vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({
+      sequence: 2_000,
+    } as never);
+    const getEvents = vi
+      .spyOn(rpc.Server.prototype, "getEvents")
+      .mockResolvedValue({ events: [] } as never);
+
+    await getContractEvents("contract-id");
+
+    expect(getEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ startLedger: 1_000 })
+    );
+  });
+
   it("keeps an RPC failure separate from a genuinely empty result", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(false);
+    mockRpcHealth(1);
     vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockRejectedValue(
       new Error("RPC down")
     );
@@ -367,6 +413,7 @@ describe("getContractEvents", () => {
 
   it("returns an empty list when the RPC call fails or returns no events", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(false);
+    mockRpcHealth(1);
     vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockRejectedValue(
       new Error("RPC down")
     );
@@ -419,6 +466,7 @@ describe("getInvocationHistory", () => {
 
   it("derives unique recent transactions from RPC events", async () => {
     vi.mocked(isIndexerConfigured).mockReturnValue(false);
+    mockRpcHealth(1_000);
     vi.spyOn(rpc.Server.prototype, "getLatestLedger").mockResolvedValue({
       sequence: 20_000,
     } as never);

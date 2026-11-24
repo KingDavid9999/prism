@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { xdr } from "@stellar/stellar-sdk";
-import { getTransaction } from "@/lib/horizon";
+import {
+  getTransaction,
+  isNotFound,
+  normalizeTransactionHash,
+} from "@/lib/horizon";
 import { getInvocationReturnValue } from "@/lib/soroban";
 import { decodeInvocation, getResourceUsage } from "@/lib/xdr";
 import { rateLimitRequest } from "@/lib/rate-limit";
@@ -15,13 +19,27 @@ export async function GET(req: Request, { params }: Params) {
   const limited = await rateLimitRequest(req, { scope: "tx" });
   if (limited) return limited;
 
+  const hash = normalizeTransactionHash(params.hash);
+  if (!hash) {
+    return NextResponse.json(
+      { error: "Invalid transaction hash" },
+      { status: 400 }
+    );
+  }
+
   let tx;
   try {
-    tx = await getTransaction(params.hash);
-  } catch {
+    tx = await getTransaction(hash);
+  } catch (err) {
+    if (isNotFound(err)) {
+      return NextResponse.json(
+        { error: "Transaction not found" },
+        { status: 404 }
+      );
+    }
     return NextResponse.json(
-      { error: "Transaction not found" },
-      { status: 404 }
+      { error: "Transaction lookup unavailable" },
+      { status: 502 }
     );
   }
 

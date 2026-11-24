@@ -6,14 +6,20 @@ import ErrorState from "@/components/ErrorState";
 interface Props {
   info: ContractInfo | null;
   wasm: ContractWasmInfo | null;
+  lookupUnavailable?: boolean;
 }
 
-export default function ContractOverview({ info, wasm }: Props) {
+export default function ContractOverview({
+  info,
+  wasm,
+  lookupUnavailable = false,
+}: Props) {
   if (!info) {
     return (
       <ErrorState>
-        Couldn&apos;t load this contract — double-check the ID, or the RPC
-        endpoint may be unreachable.
+        {lookupUnavailable
+          ? "Couldn't load this contract — the RPC endpoint may be unreachable. Try again later."
+          : "Contract not found — double-check the contract ID."}
       </ErrorState>
     );
   }
